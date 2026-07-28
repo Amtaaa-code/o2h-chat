@@ -41,8 +41,6 @@ next-env.d.ts
 uploads/*
 !uploads/.gitkeep
 
-# prisma
-server/prisma/migrations/
 
 # IDE
 .vscode/
