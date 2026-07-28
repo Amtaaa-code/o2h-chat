@@ -1,0 +1,337 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            Int       @id @default(autoincrement())
+  email         String    @unique
+  username      String    @unique
+  password      String
+  role          Role      @default(USER)
+  avatar        String?
+  isOnline      Boolean   @default(false)
+  lastSeenAt    DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  profile       Profile?
+  ownedContacts Contact[]     @relation("ContactOwner")
+  targetContacts Contact[]    @relation("ContactTarget")
+  messages      Message[]
+  groupMessages GroupMessage[]
+  groups        Group[]       @relation("GroupCreator")
+  groupMembers  GroupMember[]
+  callerCalls   Call[]        @relation("CallCaller")
+  targetCalls   Call[]        @relation("CallTarget")
+  statuses      Status[]
+  statusViews   StatusView[]
+  notifications Notification[]
+  sessions      Session[]
+  devices       Device[]
+  settings      UserSettings?
+  reports       Report[]
+  messageReads  MessageRead[]
+  reactions     Reaction[]
+
+  @@index([email])
+  @@index([username])
+}
+
+enum Role {
+  USER
+  ADMIN
+  MODERATOR
+}
+
+model Profile {
+  id          Int      @id @default(autoincrement())
+  userId      Int      @unique
+  fullName    String
+  phoneNumber String?
+  bio         String?
+  dateOfBirth DateTime?
+  gender      Gender?
+  address     String?
+  coverPhoto  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+model Contact {
+  id        Int      @id @default(autoincrement())
+  ownerId   Int
+  targetId  Int
+  nickname  String?
+  isBlocked Boolean  @default(false)
+  isMuted   Boolean  @default(false)
+  isPinned  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  owner     User     @relation("ContactOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  target    User     @relation("ContactTarget", fields: [targetId], references: [id], onDelete: Cascade)
+
+  @@unique([ownerId, targetId])
+  @@index([ownerId])
+  @@index([targetId])
+}
+
+model Message {
+  id          Int         @id @default(autoincrement())
+  senderId    Int
+  chatType    String      @default("PRIVATE")
+  chatId      String
+  content     String?
+  type        String      @default("TEXT")
+  replyToId   Int?
+  isEdited    Boolean     @default(false)
+  isDeleted   Boolean     @default(false)
+  isPinned    Boolean     @default(false)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  sender      User        @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  replyTo     Message?    @relation("MessageReplies", fields: [replyToId], references: [id])
+  replies     Message[]   @relation("MessageReplies")
+  reads       MessageRead[]
+  attachments Attachment[]
+  reactions   Reaction[]
+
+  @@index([chatId])
+  @@index([senderId])
+  @@index([createdAt])
+}
+
+model MessageRead {
+  id        Int      @id @default(autoincrement())
+  messageId Int
+  userId    Int
+  readAt    DateTime @default(now())
+
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+  @@index([messageId])
+  @@index([userId])
+}
+
+model Attachment {
+  id        Int      @id @default(autoincrement())
+  messageId Int
+  filename  String
+  originalName String
+  mimeType  String
+  size      Int
+  url       String
+  createdAt DateTime @default(now())
+
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
+}
+
+model Reaction {
+  id        Int      @id @default(autoincrement())
+  messageId Int
+  userId    Int
+  emoji     String
+  createdAt DateTime @default(now())
+
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+  @@index([messageId])
+  @@index([userId])
+}
+
+model Group {
+  id          Int      @id @default(autoincrement())
+  name        String
+  description String?
+  avatar      String?
+  creatorId   Int
+  isPublic    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  creator     User          @relation("GroupCreator", fields: [creatorId], references: [id], onDelete: Cascade)
+  members     GroupMember[]
+  messages    GroupMessage[]
+
+  @@index([creatorId])
+}
+
+model GroupMember {
+  id        Int      @id @default(autoincrement())
+  groupId   Int
+  userId    Int
+  role      String   @default("MEMBER")
+  isMuted   Boolean  @default(false)
+  joinedAt  DateTime @default(now())
+
+  group     Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId])
+  @@index([groupId])
+  @@index([userId])
+}
+
+model GroupMessage {
+  id         Int      @id @default(autoincrement())
+  groupId    Int
+  senderId   Int
+  content    String?
+  type       String   @default("TEXT")
+  isPinned   Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  group      Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  sender     User     @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([groupId])
+  @@index([senderId])
+}
+
+model Call {
+  id         Int      @id @default(autoincrement())
+  callerId   Int
+  targetId   Int
+  type       String
+  status     String
+  startedAt  DateTime @default(now())
+  endedAt    DateTime?
+  duration   Int?
+
+  caller     User     @relation("CallCaller", fields: [callerId], references: [id], onDelete: Cascade)
+  target     User     @relation("CallTarget", fields: [targetId], references: [id], onDelete: Cascade)
+
+  @@index([callerId])
+  @@index([targetId])
+}
+
+model Status {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  content   String?
+  mediaUrl  String?
+  mediaType String?
+  caption   String?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  views     StatusView[]
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model StatusView {
+  id        Int      @id @default(autoincrement())
+  statusId  Int
+  userId    Int
+  viewedAt  DateTime @default(now())
+
+  status    Status   @relation(fields: [statusId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([statusId, userId])
+  @@index([statusId])
+  @@index([userId])
+}
+
+model Notification {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  title     String
+  body      String
+  type      String
+  data      String?
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isRead])
+}
+
+model Session {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  token     String   @unique
+  userAgent String?
+  ipAddress String?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+}
+
+model Device {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  name      String
+  token     String
+  lastActiveAt DateTime @default(now())
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+}
+
+model UserSettings {
+  id             Int      @id @default(autoincrement())
+  userId         Int      @unique
+  theme          String   @default("DARK")
+  language       String   @default("en")
+  notifications  Boolean  @default(true)
+  soundEnabled   Boolean  @default(true)
+  wallpaper      String?
+  fontSize       Int      @default(14)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Report {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  targetType String
+  targetId  Int
+  reason    String
+  details   String?
+  status    String   @default("PENDING")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+}

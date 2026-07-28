@@ -1,0 +1,106 @@
+import { Router } from 'express';
+import { PrismaClient } from '@prisma/client';
+import { authMiddleware } from '../middleware/auth';
+
+const router = Router();
+const prisma = new PrismaClient();
+
+router.get('/', authMiddleware, async (req: any, res) => {
+  try {
+    const groups = await prisma.group.findMany({
+      where: { members: { some: { userId: req.userId } } },
+      include: {
+        creator: { select: { id: true, username: true, avatar: true } },
+        members: { include: { user: { select: { id: true, username: true, avatar: true, isOnline: true } } } },
+      },
+    });
+    res.json({ success: true, data: groups });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+
+router.post('/', authMiddleware, async (req: any, res) => {
+  try {
+    const { name, description, memberIds } = req.body;
+    const group = await prisma.group.create({
+      data: {
+        name,
+        description,
+        creatorId: req.userId,
+        members: {
+          create: [
+            { userId: req.userId, role: 'ADMIN' },
+            ...memberIds.map((id: number) => ({ userId: id, role: 'MEMBER' as const })),
+          ],
+        },
+      },
+      include: {
+        creator: { select: { id: true, username: true, avatar: true } },
+        members: { include: { user: { select: { id: true, username: true, avatar: true } } } },
+      },
+    });
+    res.status(201).json({ success: true, data: group });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+
+router.get('/:id', authMiddleware, async (req: any, res) => {
+  try {
+    const group = await prisma.group.findUnique({
+      where: { id: parseInt(req.params.id) },
+      include: {
+        creator: { select: { id: true, username: true, avatar: true } },
+        members: { include: { user: { select: { id: true, username: true, avatar: true, isOnline: true } } } },
+      },
+    });
+    if (!group) return res.status(404).json({ success: false, message: 'Group not found' });
+    res.json({ success: true, data: group });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+
+router.post('/:id/members', authMiddleware, async (req: any, res) => {
+  try {
+    const { userIds } = req.body;
+    const groupId = parseInt(req.params.id);
+    
+    const members = await Promise.all(
+      userIds.map((userId: number) =>
+        prisma.groupMember.create({
+          data: { groupId, userId, role: 'MEMBER' },
+          include: { user: { select: { id: true, username: true, avatar: true } } },
+        })
+      )
+    );
+    res.status(201).json({ success: true, data: members });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+
+router.delete('/:id/members/:memberId', authMiddleware, async (req: any, res) => {
+  try {
+    await prisma.groupMember.deleteMany({
+      where: { groupId: parseInt(req.params.id), userId: parseInt(req.params.memberId) },
+    });
+    res.json({ success: true, message: 'Member removed' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+
+router.delete('/:id', authMiddleware, async (req: any, res) => {
+  try {
+    await prisma.group.deleteMany({
+      where: { id: parseInt(req.params.id), creatorId: req.userId },
+    });
+    res.json({ success: true, message: 'Group deleted' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+
+export default router;

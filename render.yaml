@@ -1,0 +1,59 @@
+services:
+  # Backend API
+  - type: web
+    name: o2h-backend
+    env: docker
+    region: singapore
+    plan: free
+    dockerfilePath: ./server/Dockerfile
+    dockerContext: ./server
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: o2h-db
+          property: connectionString
+      - key: CLIENT_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      - key: JWT_REFRESH_EXPIRES_IN
+        value: 30d
+      - key: UPLOAD_DIR
+        value: /opt/render/project/src/uploads
+      - key: MAX_FILE_SIZE
+        value: "52428800"
+      - key: STORAGE_TYPE
+        value: local
+      - key: PORT
+        value: "5000"
+
+  # Frontend (Docker)
+  - type: web
+    name: o2h-frontend
+    env: docker
+    region: singapore
+    plan: free
+    dockerfilePath: ./client/Dockerfile
+    dockerContext: ./client
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_PUBLIC_API_URL
+        sync: false
+      - key: NEXT_PUBLIC_WS_URL
+        sync: false
+      - key: PORT
+        value: "3000"
+
+databases:
+  - name: o2h-db
+    plan: free
+    databaseName: o2h_chat
+    ipAllowList: []

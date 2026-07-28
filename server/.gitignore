@@ -1,0 +1,25 @@
+# dependencies
+node_modules/
+
+# production
+dist/
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+
+# local env files
+.env
+
+# uploads
+uploads/*
+!uploads/.gitkeep
+
+# prisma
+prisma/migrations/
+
+# typescript
+*.tsbuildinfo
