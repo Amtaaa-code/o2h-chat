@@ -98,7 +98,6 @@ async function seedAdmin() {
           username: 'admin',
           password: hashedPassword,
           role: 'ADMIN',
-          isActive: true,
           profile: { create: { fullName: 'Admin' } },
         },
       });

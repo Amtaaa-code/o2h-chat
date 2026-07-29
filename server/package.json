@@ -5,8 +5,8 @@
   "main": "src/index.ts",
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
-    "build": "tsc",
-    "start": "npx prisma db push && node dist/index.js",
+    "build": "npx prisma generate && tsc",
+    "start": "npx prisma db push --skip-generate && node dist/index.js",
     "seed": "ts-node src/seeders/index.ts"
   },
   "prisma": {

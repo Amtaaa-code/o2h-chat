@@ -24,4 +24,4 @@ RUN mkdir -p uploads
 
 EXPOSE 5000
 
-CMD ["sh", "-c", "npx prisma migrate deploy && npm start"]
+CMD ["sh", "-c", "npx prisma db push --skip-generate && node dist/index.js"]

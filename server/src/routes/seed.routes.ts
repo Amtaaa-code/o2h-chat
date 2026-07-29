@@ -15,7 +15,6 @@ router.post('/', async (_req, res) => {
       where: { email },
       update: {
         password: hashedPassword,
-        isActive: true,
         role: 'ADMIN',
       },
       create: {
@@ -23,7 +22,6 @@ router.post('/', async (_req, res) => {
         username: 'admin',
         password: hashedPassword,
         role: 'ADMIN',
-        isActive: true,
         profile: {
           create: {
             fullName: 'Admin',
