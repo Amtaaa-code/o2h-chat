@@ -82,9 +82,48 @@ app.use((err: any, _req: express.Request, res: express.Response, _next: express.
 // Setup Socket.IO
 setupSocket(io);
 
+// Auto-seed admin user on startup
+async function seedAdmin() {
+  try {
+    const bcrypt = await import('bcryptjs');
+    const { PrismaClient } = await import('@prisma/client');
+    const prisma = new PrismaClient();
+    const email = 'admin@o2h.com';
+    const existing = await prisma.user.findUnique({ where: { email } });
+    if (!existing) {
+      const hashedPassword = await bcrypt.default.hash('admin123', 12);
+      await prisma.user.create({
+        data: {
+          email,
+          username: 'admin',
+          password: hashedPassword,
+          role: 'ADMIN',
+          isActive: true,
+          profile: { create: { fullName: 'Admin' } },
+        },
+      });
+      console.log('✅ Admin user seeded: admin@o2h.com / admin123');
+    } else {
+      // Ensure password is correct
+      const valid = await bcrypt.default.compare('admin123', existing.password);
+      if (!valid) {
+        const hashedPassword = await bcrypt.default.hash('admin123', 12);
+        await prisma.user.update({ where: { email }, data: { password: hashedPassword } });
+        console.log('✅ Admin password updated');
+      } else {
+        console.log('ℹ️ Admin user already exists and password is valid');
+      }
+    }
+    await prisma.$disconnect();
+  } catch (error: any) {
+    console.error('⚠️ Seed error:', error.message);
+  }
+}
+
 const PORT = process.env.PORT || 5000;
-httpServer.listen(PORT, () => {
+httpServer.listen(PORT, async () => {
   console.log(`🚀 O2H Server running on port ${PORT}`);
+  await seedAdmin();
 });
 
 export { io };
