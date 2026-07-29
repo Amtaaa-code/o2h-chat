@@ -1,22 +1,11 @@
 import { Router } from 'express';
 import multer from 'multer';
 import path from 'path';
-import os from 'os';
-import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 import { authMiddleware } from '../middleware/auth';
+import uploadsDir from '../lib/uploads';
 
 const router = Router();
-
-let uploadsDir = path.join(__dirname, '../../uploads');
-try {
-  if (!fs.existsSync(uploadsDir)) {
-    fs.mkdirSync(uploadsDir, { recursive: true });
-  }
-} catch {
-  uploadsDir = path.join(os.tmpdir(), 'o2h-uploads');
-  try { fs.mkdirSync(uploadsDir, { recursive: true }); } catch {}
-}
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {

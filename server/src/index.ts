@@ -7,8 +7,6 @@ import cookieParser from 'cookie-parser';
 import rateLimit from 'express-rate-limit';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
-import path from 'path';
-import fs from 'fs';
 import authRoutes from './routes/auth.routes';
 import userRoutes from './routes/user.routes';
 import contactRoutes from './routes/contact.routes';
@@ -75,16 +73,9 @@ const limiter = rateLimit({
 });
 app.use('/api', limiter);
 
-// Static files - uploads are ephemeral on Belmo
-const uploadsDir = path.join(__dirname, '..', 'uploads');
-try {
-  if (!fs.existsSync(uploadsDir)) {
-    fs.mkdirSync(uploadsDir, { recursive: true });
-  }
-  app.use('/uploads', express.static(uploadsDir));
-} catch (e) {
-  console.warn('uploads directory not writable, file uploads will not persist');
-}
+// Static files
+import uploadsDir from './lib/uploads';
+app.use('/uploads', express.static(uploadsDir));
 
 // Make io accessible to routes
 app.set('io', io);
