@@ -309,6 +309,7 @@ function AddStoryDialog({
   const [preview, setPreview] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [storyType, setStoryType] = useState<"text" | "image">("text");
+  const [error, setError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -317,6 +318,7 @@ function AddStoryDialog({
       setSelectedFile(null);
       setPreview(null);
       setStoryType("text");
+      setError("");
     }
   }, [open]);
 
@@ -333,6 +335,7 @@ function AddStoryDialog({
   const handlePost = async () => {
     if (!content.trim() && !selectedFile) return;
     setLoading(true);
+    setError("");
     try {
       let mediaUrl = null;
       let mediaType = null;
@@ -346,6 +349,10 @@ function AddStoryDialog({
         if (uploadData.success && uploadData.data[0]) {
           mediaUrl = uploadData.data[0].url;
           mediaType = selectedFile.type.startsWith("video/") ? "VIDEO" : "IMAGE";
+        } else {
+          setError("Failed to upload file. Please try again.");
+          setLoading(false);
+          return;
         }
       }
 
@@ -357,8 +364,9 @@ function AddStoryDialog({
       });
 
       onCreated();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to create story:", error);
+      setError(error.response?.data?.message || "Failed to post story. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -391,6 +399,14 @@ function AddStoryDialog({
         </div>
 
         {/* Type selector */}
+        {error && (
+          <div className="px-4 py-2">
+            <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm text-center">
+              {error}
+            </div>
+          </div>
+        )}
+
         <div className="px-4 py-3 flex gap-2">
           <button
             onClick={() => setStoryType("text")}

@@ -8,6 +8,7 @@ import rateLimit from 'express-rate-limit';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import path from 'path';
+import fs from 'fs';
 import authRoutes from './routes/auth.routes';
 import userRoutes from './routes/user.routes';
 import contactRoutes from './routes/contact.routes';
@@ -39,12 +40,16 @@ const io = new Server(httpServer, {
         callback(new Error('Not allowed by CORS'));
       }
     },
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     credentials: true,
   },
+  transports: ['websocket', 'polling'],
 });
 
 // Middleware
-app.use(helmet());
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+}));
 app.use(cors({
   origin: (origin, callback) => {
     if (!origin || allowedOrigins.includes(origin)) {
@@ -61,13 +66,19 @@ app.use(cookieParser());
 
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100,
+  max: 200,
   message: 'Too many requests from this IP, please try again later.',
 });
 app.use('/api', limiter);
 
+// Ensure uploads directory exists
+const uploadsDir = path.join(__dirname, '..', 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
 // Static files
-app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
+app.use('/uploads', express.static(uploadsDir));
 
 // Make io accessible to routes
 app.set('io', io);
@@ -94,6 +105,12 @@ app.get('/api/health', (_, res) => {
 // Error handler
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error('Error:', err.message);
+  if (err.message === 'Not allowed by CORS') {
+    return res.status(403).json({ success: false, message: 'CORS not allowed' });
+  }
+  if (err.code === 'LIMIT_FILE_SIZE') {
+    return res.status(413).json({ success: false, message: 'File too large' });
+  }
   res.status(err.status || 500).json({
     success: false,
     message: err.message || 'Internal Server Error',
@@ -124,7 +141,6 @@ async function seedAdmin() {
       });
       console.log('✅ Admin user seeded: admin@o2h.com / admin123');
     } else {
-      // Ensure password is correct
       const valid = await bcrypt.default.compare('admin123', existing.password);
       if (!valid) {
         const hashedPassword = await bcrypt.default.hash('admin123', 12);

@@ -183,10 +183,16 @@ export default function ChatWindow() {
     if (pendingFiles.length === 0) return;
     if (!activeChat || !user) return;
 
+    const savedInput = inputValue;
+    const savedFiles = [...pendingFiles];
     setUploading(true);
+    setInputValue("");
+    setPendingFiles([]);
+    setReplyTo(null);
+
     try {
       const formData = new FormData();
-      pendingFiles.forEach((pf) => formData.append("files", pf.file));
+      savedFiles.forEach((pf) => formData.append("files", pf.file));
 
       const { data: uploadData } = await api.post("/upload", formData, {
         headers: { "Content-Type": "multipart/form-data" },
@@ -196,41 +202,28 @@ export default function ChatWindow() {
         const files = uploadData.data;
         const hasImages = files.some((f: any) => f.mimeType.startsWith("image/"));
 
-        const msgData = {
+        const { data: msgRes } = await api.post("/messages", {
           chatType: activeChat.type,
           chatId: activeChat.id,
-          content: inputValue.trim() || null,
+          content: savedInput.trim() || null,
           type: hasImages ? "IMAGE" : "DOCUMENT",
           replyToId: replyTo?.id,
-        };
-
-        sendMessage(msgData);
-
-        // Also send via REST for the attachment linkage
-        const { data: msgRes } = await api.post("/messages", {
-          ...msgData,
           attachments: files,
         });
 
         if (msgRes.success) {
           addMessage({
             ...msgRes.data,
-            sender: {
-              id: user.id,
-              username: user.username,
-              avatar: user.avatar,
-              profile: user.profile,
-            },
+            sender: { id: user.id, username: user.username, avatar: user.avatar, profile: user.profile },
           } as any);
         }
       }
     } catch (error) {
       console.error("Upload failed:", error);
+      setInputValue(savedInput);
+      setPendingFiles(savedFiles);
     } finally {
       setUploading(false);
-      setPendingFiles([]);
-      setInputValue("");
-      setReplyTo(null);
       inputRef.current?.focus();
     }
   };
@@ -243,36 +236,32 @@ export default function ChatWindow() {
 
     if (!inputValue.trim() || !activeChat || !user) return;
 
-    const messageData = {
-      chatType: activeChat.type,
-      chatId: activeChat.id,
-      content: inputValue.trim(),
-      type: "TEXT",
-      replyToId: replyTo?.id,
-    };
-
-    sendMessage(messageData);
-    addMessage({
-      id: Date.now(),
-      senderId: user.id,
-      chatType: activeChat.type,
-      chatId: activeChat.id,
-      content: inputValue.trim(),
-      type: "TEXT",
-      isEdited: false,
-      isDeleted: false,
-      isPinned: false,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      sender: { id: user.id, username: user.username, avatar: user.avatar, profile: user.profile },
-      replyTo: replyTo || undefined,
-    } as any);
-
+    const content = inputValue.trim();
     setInputValue("");
     setReplyTo(null);
     stopTyping(activeChat.type, activeChat.id);
     setIsTyping(false);
     inputRef.current?.focus();
+
+    try {
+      const { data } = await api.post("/messages", {
+        chatType: activeChat.type,
+        chatId: activeChat.id,
+        content,
+        type: "TEXT",
+        replyToId: replyTo?.id,
+      });
+
+      if (data.success) {
+        addMessage({
+          ...data.data,
+          sender: { id: user.id, username: user.username, avatar: user.avatar, profile: user.profile },
+        } as any);
+      }
+    } catch (error) {
+      console.error("Send message failed:", error);
+      setInputValue(content);
+    }
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
