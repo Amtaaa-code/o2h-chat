@@ -85,6 +85,22 @@ export const setupSocket = (io: Server) => {
       }
     });
 
+    socket.on('message:delivered', (data) => {
+      try {
+        const { chatType, chatId } = data;
+        if (chatType === 'PRIVATE') {
+          const targetUserId = parseInt(chatId);
+          if (targetUserId !== userId) {
+            io.to(`user:${targetUserId}`).emit('message:new', data);
+          }
+        } else if (chatType === 'GROUP') {
+          io.to(`group:${chatId}`).emit('message:new', data);
+        }
+      } catch (error) {
+        console.error('Message deliver error:', error);
+      }
+    });
+
     socket.on('message:typing', (data) => {
       const { chatType, chatId } = data;
       if (chatType === 'PRIVATE') {

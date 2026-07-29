@@ -212,10 +212,12 @@ export default function ChatWindow() {
         });
 
         if (msgRes.success) {
-          addMessage({
+          const msg = {
             ...msgRes.data,
             sender: { id: user.id, username: user.username, avatar: user.avatar, profile: user.profile },
-          } as any);
+          };
+          addMessage(msg as any);
+          emitSocket("message:delivered", msg);
         }
       }
     } catch (error) {
@@ -253,10 +255,12 @@ export default function ChatWindow() {
       });
 
       if (data.success) {
-        addMessage({
+        const msg = {
           ...data.data,
           sender: { id: user.id, username: user.username, avatar: user.avatar, profile: user.profile },
-        } as any);
+        };
+        addMessage(msg as any);
+        emitSocket("message:delivered", msg);
       }
     } catch (error) {
       console.error("Send message failed:", error);
