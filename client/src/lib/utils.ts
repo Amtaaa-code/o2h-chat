@@ -68,3 +68,10 @@ export function generateChatId(userId1: number, userId2: number) {
 export function getStatusColor(isOnline: boolean) {
   return isOnline ? '#22c55e' : '#6b7280';
 }
+
+export function getUploadUrl(url: string | undefined | null): string {
+  if (!url) return '';
+  if (url.startsWith('http')) return url;
+  const backend = (process.env.NEXT_PUBLIC_API_URL || 'https://o2h-chat-64de.onbelmo.uk/api').replace('/api', '');
+  return `${backend}${url}`;
+}

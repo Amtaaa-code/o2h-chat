@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAppStore } from "@/lib/store";
-import { cn, formatTime } from "@/lib/utils";
+import { cn, formatTime, getUploadUrl } from "@/lib/utils";
 import api from "@/lib/axios";
 
 interface StoryUser {
@@ -250,9 +250,9 @@ export function StoryViewer({ stories, user, startIndex, onClose, onStoryViewed 
       {/* Story content */}
       <div className="relative w-full h-full flex items-center justify-center z-10">
         {currentStory.mediaUrl && currentStory.mediaType === "IMAGE" ? (
-          <img src={currentStory.mediaUrl} alt="" className="w-full h-full object-contain" />
+          <img src={getUploadUrl(currentStory.mediaUrl)} alt="" className="w-full h-full object-contain" />
         ) : currentStory.mediaUrl && currentStory.mediaType === "VIDEO" ? (
-          <video src={currentStory.mediaUrl} className="w-full h-full object-contain" autoPlay muted />
+          <video src={getUploadUrl(currentStory.mediaUrl)} className="w-full h-full object-contain" autoPlay muted />
         ) : (
           <div className="w-full h-full flex items-center justify-center px-12">
             <div

@@ -37,7 +37,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAppStore } from "@/lib/store";
-import { cn, formatTime, formatDate, formatFileSize } from "@/lib/utils";
+import { cn, formatTime, formatDate, formatFileSize, getUploadUrl } from "@/lib/utils";
 import { useSocket } from "@/hooks/useSocket";
 import { useCall, CallScreen, IncomingCallDialog } from "@/components/CallComponents";
 import api from "@/lib/axios";
@@ -486,16 +486,16 @@ export default function ChatWindow() {
                         ) : msg.type === "IMAGE" && msg.attachments?.[0] ? (
                           <div>
                             <img
-                              src={msg.attachments[0].url}
+                              src={getUploadUrl(msg.attachments[0].url)}
                               alt={msg.attachments[0].originalName || "Image"}
                               className="rounded-xl max-w-[280px] max-h-[300px] object-cover cursor-pointer hover:opacity-90 transition-opacity"
                               loading="lazy"
-                              onClick={() => setLightboxImage(msg.attachments![0].url)}
+                              onClick={() => setLightboxImage(getUploadUrl(msg.attachments![0].url))}
                             />
                             {msg.content && <p className="mt-2 text-sm">{msg.content}</p>}
                           </div>
                         ) : msg.type === "DOCUMENT" && msg.attachments?.[0] ? (
-                          <a href={msg.attachments[0].url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 p-3 bg-white/10 rounded-xl min-w-[200px] hover:bg-white/15 transition-colors">
+                          <a href={getUploadUrl(msg.attachments[0].url)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 p-3 bg-white/10 rounded-xl min-w-[200px] hover:bg-white/15 transition-colors">
                             <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center flex-shrink-0">
                               <FileText className="h-5 w-5 text-primary" />
                             </div>

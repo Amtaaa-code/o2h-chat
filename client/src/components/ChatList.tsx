@@ -78,20 +78,20 @@ export default function ChatList({ onViewStory }: { onViewStory?: (stories: any[
 
   const fetchChats = async () => {
     try {
-      const [contactsRes, groupsRes] = await Promise.all([
-        api.get("/contacts").catch(() => ({ data: { data: [] } })),
+      const [conversationsRes, groupsRes] = await Promise.all([
+        api.get("/messages/conversations").catch(() => ({ data: { data: [] } })),
         api.get("/groups").catch(() => ({ data: { data: [] } })),
       ]);
 
-      const contactChats: ChatItem[] = (contactsRes.data?.data || []).map(
+      const privateChats: ChatItem[] = (conversationsRes.data?.data || []).map(
         (c: any) => ({
-          id: String(c.target.id),
-          type: "PRIVATE" as const,
-          name: c.nickname || c.target.profile?.fullName || c.target.username,
-          avatar: c.target.avatar,
+          id: c.id,
+          type: c.type as "PRIVATE" | "GROUP",
+          name: c.name,
+          avatar: c.avatar,
           lastMessage: c.lastMessage,
-          unreadCount: 0,
-          isOnline: c.target.isOnline,
+          unreadCount: c.unreadCount || 0,
+          isOnline: c.isOnline,
           isPinned: c.isPinned,
           isMuted: c.isMuted,
         })
@@ -111,8 +111,9 @@ export default function ChatList({ onViewStory }: { onViewStory?: (stories: any[
         })
       );
 
-      const pinned = [...contactChats, ...groupChats].filter((c) => c.isPinned);
-      const unpinned = [...contactChats, ...groupChats].filter((c) => !c.isPinned);
+      const allChats = [...privateChats, ...groupChats];
+      const pinned = allChats.filter((c) => c.isPinned);
+      const unpinned = allChats.filter((c) => !c.isPinned);
       setChats([...pinned, ...unpinned]);
     } catch (error) {
       console.error("Failed to fetch chats:", error);
