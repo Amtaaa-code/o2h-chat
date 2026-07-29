@@ -16,7 +16,7 @@ import api from "@/lib/axios";
 export default function ChatLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { user, setUser, profilePanelOpen, sidebarCollapsed } = useAppStore();
+  const { user, setUser, profilePanelOpen, sidebarCollapsed, activeChat, setActiveChat } = useAppStore();
   const [loading, setLoading] = useState(true);
 
   // Story viewer state
@@ -102,9 +102,15 @@ export default function ChatLayout({ children }: { children: React.ReactNode }) 
       {/* Mobile Layout */}
       <div className="md:hidden w-full h-full flex flex-col">
         <div className="flex-1 overflow-hidden">
-          {isSubRoute ? children : <ChatWindow />}
+          {isSubRoute ? (
+            children
+          ) : activeChat ? (
+            <ChatWindow />
+          ) : (
+            <ChatList onViewStory={handleViewStory} />
+          )}
         </div>
-        {!isSubRoute && <MobileNav />}
+        {!isSubRoute && !activeChat && <MobileNav />}
       </div>
 
       {/* Story Viewer Overlay */}
