@@ -19,6 +19,7 @@ import uploadRoutes from './routes/upload.routes';
 import notificationRoutes from './routes/notification.routes';
 import settingsRoutes from './routes/settings.routes';
 import searchRoutes from './routes/search.routes';
+import seedRoutes from './routes/seed.routes';
 import { setupSocket } from './socket';
 
 const app = express();
@@ -62,6 +63,7 @@ app.use('/api/upload', uploadRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/search', searchRoutes);
+app.use('/api/seed', seedRoutes);
 
 // Health check
 app.get('/api/health', (_, res) => {
