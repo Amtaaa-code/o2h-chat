@@ -5,7 +5,7 @@ let socket: Socket | null = null;
 export const getSocket = (): Socket => {
   if (!socket) {
     const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
-    socket = io(process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:5000', {
+    socket = io(process.env.NEXT_PUBLIC_WS_URL || 'https://o2h-chat-64de.onbelmo.uk', {
       auth: { token },
       transports: ['websocket', 'polling'],
     });
