@@ -48,7 +48,8 @@ const io = new Server(httpServer, {
 
 // Middleware
 app.use(helmet({
-  crossOriginResourcePolicy: { policy: 'cross-origin' },
+  crossOriginResourcePolicy: false,
+  contentSecurityPolicy: false,
 }));
 app.use(cors({
   origin: (origin, callback) => {
@@ -66,8 +67,11 @@ app.use(cookieParser());
 
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 200,
+  max: 1000,
   message: 'Too many requests from this IP, please try again later.',
+  skip: (req) => {
+    return req.path === '/health' || req.path.startsWith('/auth');
+  },
 });
 app.use('/api', limiter);
 
