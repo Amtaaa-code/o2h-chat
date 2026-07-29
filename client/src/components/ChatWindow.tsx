@@ -98,6 +98,7 @@ export default function ChatWindow() {
   const [loading, setLoading] = useState(false);
   const [showScrollDown, setShowScrollDown] = useState(false);
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -484,14 +485,13 @@ export default function ChatWindow() {
                           <p className="text-sm italic text-white/40 flex items-center gap-1.5"><Trash2 className="h-3.5 w-3.5" /> This message was deleted</p>
                         ) : msg.type === "IMAGE" && msg.attachments?.[0] ? (
                           <div>
-                            <a href={msg.attachments[0].url} target="_blank" rel="noopener noreferrer">
-                              <img
-                                src={msg.attachments[0].url}
-                                alt={msg.attachments[0].originalName || "Image"}
-                                className="rounded-xl max-w-[280px] max-h-[300px] object-cover cursor-pointer hover:opacity-90 transition-opacity"
-                                loading="lazy"
-                              />
-                            </a>
+                            <img
+                              src={msg.attachments[0].url}
+                              alt={msg.attachments[0].originalName || "Image"}
+                              className="rounded-xl max-w-[280px] max-h-[300px] object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                              loading="lazy"
+                              onClick={() => setLightboxImage(msg.attachments![0].url)}
+                            />
                             {msg.content && <p className="mt-2 text-sm">{msg.content}</p>}
                           </div>
                         ) : msg.type === "DOCUMENT" && msg.attachments?.[0] ? (
@@ -731,6 +731,35 @@ export default function ChatWindow() {
       {/* Hidden file inputs */}
       <input ref={fileInputRef} type="file" multiple accept="image/*" className="hidden" onChange={handleFileSelect} />
       <input ref={docInputRef} type="file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip" className="hidden" onChange={handleFileSelect} />
+
+      {/* Image Lightbox */}
+      <AnimatePresence>
+        {lightboxImage && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 cursor-pointer"
+            onClick={() => setLightboxImage(null)}
+          >
+            <motion.img
+              initial={{ scale: 0.8 }}
+              animate={{ scale: 1 }}
+              exit={{ scale: 0.8 }}
+              src={lightboxImage}
+              alt="Preview"
+              className="max-w-full max-h-full object-contain rounded-xl shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            />
+            <button
+              className="absolute top-4 right-4 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full p-2 transition-colors"
+              onClick={() => setLightboxImage(null)}
+            >
+              <X className="h-6 w-6" />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
