@@ -118,7 +118,7 @@ export default function ProfilePanel() {
         <div className="px-4 py-4">
           <p className="text-xs text-white/40 mb-1">About</p>
           <p className="text-sm text-white/70">
-            Hey there! I am using O2H
+            {activeChat.type === "PRIVATE" ? "Hey there! I am using O2H" : `${activeChat.memberCount || 0} members in this group`}
           </p>
         </div>
 

@@ -78,7 +78,7 @@ const QUICK_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
 export default function ChatWindow() {
   const {
     activeChat, user, messages, setMessages, addMessage,
-    profilePanelOpen, setProfilePanelOpen, setActiveChat,
+    profilePanelOpen, setProfilePanelOpen, setActiveChat, typingUsers,
   } = useAppStore();
   const { sendMessage, startTyping, stopTyping, markAsRead, emitSocket } = useSocket();
   const {
@@ -116,7 +116,7 @@ export default function ChatWindow() {
       setShowAttachMenu(false);
       setPendingFiles([]);
     }
-  }, [activeChat?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeChat?.id]);
 
   useEffect(() => {
     if (messages.length > 0) {
@@ -153,11 +153,9 @@ export default function ChatWindow() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-  // File selection handler
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
-
     const newFiles: PendingFile[] = Array.from(files).map((file) => {
       const pending: PendingFile = { file };
       if (file.type.startsWith("image/")) {
@@ -165,7 +163,6 @@ export default function ChatWindow() {
       }
       return pending;
     });
-
     setPendingFiles((prev) => [...prev, ...newFiles]);
     setShowAttachMenu(false);
     e.target.value = "";
@@ -179,30 +176,23 @@ export default function ChatWindow() {
     });
   };
 
-  // Upload files and send message
   const handleSendWithFiles = async () => {
-    if (pendingFiles.length === 0) return;
-    if (!activeChat || !user) return;
-
+    if (pendingFiles.length === 0 || !activeChat || !user) return;
     const savedInput = inputValue;
     const savedFiles = [...pendingFiles];
     setUploading(true);
     setInputValue("");
     setPendingFiles([]);
     setReplyTo(null);
-
     try {
       const formData = new FormData();
       savedFiles.forEach((pf) => formData.append("files", pf.file));
-
       const { data: uploadData } = await api.post("/upload", formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
-
       if (uploadData.success) {
         const files = uploadData.data;
         const hasImages = files.some((f: any) => f.mimeType.startsWith("image/"));
-
         const { data: msgRes } = await api.post("/messages", {
           chatType: activeChat.type,
           chatId: activeChat.id,
@@ -211,12 +201,8 @@ export default function ChatWindow() {
           replyToId: replyTo?.id,
           attachments: files,
         });
-
         if (msgRes.success) {
-          const msg = {
-            ...msgRes.data,
-            sender: { id: user.id, username: user.username, avatar: user.avatar, profile: user.profile },
-          };
+          const msg = { ...msgRes.data, sender: { id: user.id, username: user.username, avatar: user.avatar, profile: user.profile } };
           addMessage(msg as any);
           emitSocket("message:delivered", msg);
         }
@@ -231,21 +217,15 @@ export default function ChatWindow() {
     }
   };
 
-  // Send text message
   const handleSend = async () => {
-    if (pendingFiles.length > 0) {
-      return handleSendWithFiles();
-    }
-
+    if (pendingFiles.length > 0) return handleSendWithFiles();
     if (!inputValue.trim() || !activeChat || !user) return;
-
     const content = inputValue.trim();
     setInputValue("");
     setReplyTo(null);
     stopTyping(activeChat.type, activeChat.id);
     setIsTyping(false);
     inputRef.current?.focus();
-
     try {
       const { data } = await api.post("/messages", {
         chatType: activeChat.type,
@@ -254,12 +234,8 @@ export default function ChatWindow() {
         type: "TEXT",
         replyToId: replyTo?.id,
       });
-
       if (data.success) {
-        const msg = {
-          ...data.data,
-          sender: { id: user.id, username: user.username, avatar: user.avatar, profile: user.profile },
-        };
+        const msg = { ...data.data, sender: { id: user.id, username: user.username, avatar: user.avatar, profile: user.profile } };
         addMessage(msg as any);
         emitSocket("message:delivered", msg);
       }
@@ -309,58 +285,31 @@ export default function ChatWindow() {
   };
 
   useEffect(() => {
-    const handleClick = () => {
-      setContextMenu(null);
-      setSelectedMessage(null);
-    };
+    const handleClick = () => { setContextMenu(null); setSelectedMessage(null); };
     document.addEventListener("click", handleClick);
     return () => document.removeEventListener("click", handleClick);
   }, []);
 
-  // ---- CALL SCREEN ----
+  const isOtherTyping = activeChat && typingUsers[activeChat.id]?.length > 0;
+
   if (callState.isActive) {
-    return (
-      <CallScreen
-        callState={callState}
-        onEndCall={endCall}
-        onToggleMute={toggleMute}
-        onToggleVideo={toggleVideo}
-        onToggleSpeaker={toggleSpeaker}
-      />
-    );
+    return <CallScreen callState={callState} onEndCall={endCall} onToggleMute={toggleMute} onToggleVideo={toggleVideo} onToggleSpeaker={toggleSpeaker} />;
   }
 
-  // ---- INCOMING CALL DIALOG ----
   const incomingCallDialog = incomingCall ? (
-    <IncomingCallDialog
-      callerName={incomingCall.callerName}
-      callerAvatar={incomingCall.callerAvatar}
-      callType={incomingCall.callType}
-      callId={incomingCall.callId}
-      callerId={incomingCall.callerId}
-      onAccept={acceptCall}
-      onReject={rejectCall}
-    />
+    <IncomingCallDialog callerName={incomingCall.callerName} callerAvatar={incomingCall.callerAvatar} callType={incomingCall.callType} callId={incomingCall.callId} callerId={incomingCall.callerId} onAccept={acceptCall} onReject={rejectCall} />
   ) : null;
 
-  // ---- EMPTY STATE ----
   if (!activeChat) {
     return (
       <div className="h-full flex flex-col items-center justify-center bg-[#060B16]">
         {incomingCallDialog}
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="text-center"
-        >
+        <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="text-center">
           <div className="w-28 h-28 gradient-primary rounded-[32px] flex items-center justify-center mx-auto mb-6 shadow-xl shadow-primary/20">
             <span className="text-4xl font-bold text-white">O2H</span>
           </div>
           <h2 className="text-2xl font-bold text-white mb-2">Welcome to O2H</h2>
-          <p className="text-white/40 max-w-sm leading-relaxed">
-            Select a conversation from the sidebar to start messaging, or create
-            a new chat or group.
-          </p>
+          <p className="text-white/40 max-w-sm leading-relaxed">Select a conversation from the sidebar to start messaging, or create a new chat or group.</p>
         </motion.div>
       </div>
     );
@@ -371,20 +320,32 @@ export default function ChatWindow() {
       {incomingCallDialog}
 
       {/* Chat Header */}
-      <div className="h-16 px-4 flex items-center justify-between border-b border-[#1B2434] bg-[#0B1220]/80 backdrop-blur-xl flex-shrink-0">
+      <div className="h-16 px-4 flex items-center justify-between border-b border-[#1B2434] bg-[#0B1220]/80 backdrop-blur-xl flex-shrink-0 z-10">
         <div className="flex items-center gap-3 min-w-0">
           <Button variant="ghost" size="icon" className="md:hidden text-white/60 hover:text-white h-9 w-9" onClick={() => setActiveChat(null)}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
-          <Avatar className="h-10 w-10 flex-shrink-0">
-            <AvatarImage src={activeChat.avatar || undefined} />
-            <AvatarFallback name={activeChat.name} />
-          </Avatar>
+          <div className="relative flex-shrink-0">
+            <Avatar className="h-10 w-10">
+              <AvatarImage src={activeChat.avatar || undefined} />
+              <AvatarFallback name={activeChat.name} />
+            </Avatar>
+            {activeChat.type === "PRIVATE" && (
+              <div className={cn("absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-[#0B1220]", activeChat.isOnline ? "bg-green-500" : "bg-gray-500")} />
+            )}
+          </div>
           <div className="min-w-0">
-            <h3 className="font-semibold text-white truncate">{activeChat.name}</h3>
+            <h3 className="font-semibold text-white truncate text-[15px]">{activeChat.name}</h3>
             <p className="text-xs text-white/40">
-              {activeChat.isTyping ? (
-                <span className="text-primary animate-pulse">typing...</span>
+              {isOtherTyping ? (
+                <span className="text-primary flex items-center gap-1">
+                  typing
+                  <span className="flex gap-0.5">
+                    <span className="w-1 h-1 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                    <span className="w-1 h-1 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                    <span className="w-1 h-1 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                  </span>
+                </span>
               ) : activeChat.type === "PRIVATE" ? (
                 activeChat.isOnline ? <span className="text-green-400">Online</span> : "Offline"
               ) : (
@@ -395,16 +356,12 @@ export default function ChatWindow() {
         </div>
         <div className="flex items-center gap-0.5">
           <Button variant="ghost" size="icon" className="text-white/60 hover:text-white h-10 w-10" onClick={() => {
-            if (activeChat.type === "PRIVATE") {
-              initiateCall(parseInt(activeChat.id), activeChat.name, activeChat.avatar, "VOICE");
-            }
+            if (activeChat.type === "PRIVATE") initiateCall(parseInt(activeChat.id), activeChat.name, activeChat.avatar, "VOICE");
           }}>
             <Phone className="h-5 w-5" />
           </Button>
           <Button variant="ghost" size="icon" className="text-white/60 hover:text-white h-10 w-10" onClick={() => {
-            if (activeChat.type === "PRIVATE") {
-              initiateCall(parseInt(activeChat.id), activeChat.name, activeChat.avatar, "VIDEO");
-            }
+            if (activeChat.type === "PRIVATE") initiateCall(parseInt(activeChat.id), activeChat.name, activeChat.avatar, "VIDEO");
           }}>
             <Video className="h-5 w-5" />
           </Button>
@@ -418,7 +375,7 @@ export default function ChatWindow() {
       </div>
 
       {/* Messages Area */}
-      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto scrollbar-thin px-4 py-4">
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto scrollbar-thin px-4 py-3">
         {loading ? (
           <div className="flex items-center justify-center h-full">
             <div className="flex flex-col items-center gap-3">
@@ -437,25 +394,34 @@ export default function ChatWindow() {
             </div>
           </div>
         ) : (
-          <div className="space-y-3 max-w-3xl mx-auto">
+          <div className="space-y-1 max-w-3xl mx-auto">
             {messages.map((msg, index) => {
               const isOwn = msg.senderId === user?.id;
-              const showAvatar = !isOwn && (index === 0 || messages[index - 1]?.senderId !== msg.senderId || messages[index - 1]?.isDeleted);
-              const showDate = index === 0 || formatDate(msg.createdAt) !== formatDate(messages[index - 1]?.createdAt);
-              const isConsecutive = index > 0 && messages[index - 1]?.senderId === msg.senderId && !messages[index - 1]?.isDeleted && formatDate(msg.createdAt) === formatDate(messages[index - 1]?.createdAt);
+              const prevMsg = index > 0 ? messages[index - 1] : null;
+              const nextMsg = index < messages.length - 1 ? messages[index + 1] : null;
+              const showAvatar = !isOwn && (!prevMsg || prevMsg.senderId !== msg.senderId || prevMsg.isDeleted);
+              const showDate = index === 0 || formatDate(msg.createdAt) !== formatDate(prevMsg?.createdAt || '');
+              const isConsecutive = prevMsg && prevMsg.senderId === msg.senderId && !prevMsg.isDeleted && formatDate(msg.createdAt) === formatDate(prevMsg.createdAt);
+              const isLastInGroup = !nextMsg || nextMsg.senderId !== msg.senderId || nextMsg.isDeleted || formatDate(nextMsg.createdAt) !== formatDate(msg.createdAt);
+              const isSingleEmoji = msg.content && /^[\p{Emoji}\u200d\ufe0f]{1,2}$/u.test(msg.content) && !msg.attachments?.length;
 
               return (
                 <div key={msg.id}>
                   {showDate && (
-                    <div className="flex items-center justify-center my-5">
+                    <div className="flex items-center justify-center my-4">
                       <div className="px-4 py-1.5 bg-[#101826] rounded-full border border-[#1B2434]">
                         <span className="text-xs text-white/40 font-medium">{formatDate(msg.createdAt)}</span>
                       </div>
                     </div>
                   )}
-                  <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }} className={cn("flex gap-2", isOwn ? "flex-row-reverse" : "flex-row")}>
+                  <motion.div
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.15 }}
+                    className={cn("flex gap-2", isOwn ? "flex-row-reverse" : "flex-row", isConsecutive && "mt-0.5")}
+                  >
                     {!isOwn && (
-                      <div className="w-8 flex-shrink-0">
+                      <div className="w-8 flex-shrink-0 self-end">
                         {showAvatar ? (
                           <Avatar className="h-8 w-8">
                             <AvatarImage src={msg.sender.avatar || undefined} />
@@ -464,25 +430,30 @@ export default function ChatWindow() {
                         ) : <div className="w-8" />}
                       </div>
                     )}
-                    <div className={cn("max-w-[65%] min-w-[80px]", isOwn ? "items-end" : "items-start")}>
+                    <div className={cn("max-w-[65%] min-w-[60px]", isOwn ? "items-end" : "items-start")}>
                       {!isOwn && showAvatar && (
-                        <p className="text-xs text-primary/70 mb-1 ml-1 font-medium">{msg.sender.profile?.fullName || msg.sender.username}</p>
+                        <p className="text-[11px] text-primary/70 mb-1 ml-1 font-medium">{msg.sender.profile?.fullName || msg.sender.username}</p>
                       )}
 
                       {msg.replyTo && (
-                        <div className={cn("mb-1 px-3 py-2 border-l-2 border-primary/50 rounded-lg", isOwn ? "bg-primary/20" : "bg-[#1B2434]")}>
-                          <p className="text-xs text-primary font-medium">{msg.replyTo.sender.username}</p>
-                          <p className="text-xs text-white/40 truncate mt-0.5">{msg.replyTo.content || "Attachment"}</p>
+                        <div className={cn("mb-1 px-3 py-2 border-l-2 border-primary/50 rounded-lg text-xs", isOwn ? "bg-primary/15" : "bg-[#101826]")}>
+                          <p className="text-primary font-medium">{msg.replyTo.sender.username}</p>
+                          <p className="text-white/40 truncate mt-0.5">{msg.replyTo.content || "Attachment"}</p>
                         </div>
                       )}
 
                       <div
-                        className={cn("relative px-3 py-2 group", isOwn ? "message-own" : "message-other", isConsecutive && isOwn && "rounded-tr-2xl", isConsecutive && !isOwn && "rounded-tl-2xl")}
+                        className={cn(
+                          "relative px-3 py-1.5 group",
+                          isSingleEmoji ? "bg-transparent text-3xl px-1" : (isOwn ? "message-own" : "message-other"),
+                          isConsecutive && isOwn && "rounded-tr-sm",
+                          isConsecutive && !isOwn && "rounded-tl-sm",
+                        )}
                         onClick={(e) => { e.stopPropagation(); setSelectedMessage(selectedMessage === msg.id ? null : msg.id); }}
                         onContextMenu={(e) => handleContextMenu(e, msg)}
                       >
                         {msg.isDeleted ? (
-                          <p className="text-sm italic text-white/40 flex items-center gap-1.5"><Trash2 className="h-3.5 w-3.5" /> This message was deleted</p>
+                          <p className="text-sm italic text-white/40 flex items-center gap-1.5 py-0.5"><Trash2 className="h-3.5 w-3.5" /> This message was deleted</p>
                         ) : msg.type === "IMAGE" && msg.attachments?.[0] ? (
                           <div>
                             <img
@@ -492,18 +463,18 @@ export default function ChatWindow() {
                               loading="lazy"
                               onClick={() => setLightboxImage(getUploadUrl(msg.attachments![0].url))}
                             />
-                            {msg.content && <p className="mt-2 text-sm">{msg.content}</p>}
+                            {msg.content && <p className="mt-1 text-sm">{msg.content}</p>}
                           </div>
                         ) : msg.type === "DOCUMENT" && msg.attachments?.[0] ? (
-                          <a href={getUploadUrl(msg.attachments[0].url)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 p-3 bg-white/10 rounded-xl min-w-[200px] hover:bg-white/15 transition-colors">
+                          <a href={getUploadUrl(msg.attachments[0].url)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 p-3 bg-white/5 rounded-xl min-w-[220px] hover:bg-white/10 transition-colors">
                             <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center flex-shrink-0">
                               <FileText className="h-5 w-5 text-primary" />
                             </div>
                             <div className="flex-1 min-w-0">
                               <p className="text-sm font-medium truncate">{msg.attachments[0].originalName}</p>
-                              <p className="text-xs text-white/50">{formatFileSize(msg.attachments[0].size)}</p>
+                              <p className="text-xs text-white/40">{formatFileSize(msg.attachments[0].size)}</p>
                             </div>
-                            <Download className="h-4 w-4 text-white/40 flex-shrink-0" />
+                            <Download className="h-4 w-4 text-white/30 flex-shrink-0" />
                           </a>
                         ) : (
                           <p className="text-[14.5px] leading-relaxed whitespace-pre-wrap break-words">{msg.content}</p>
@@ -515,7 +486,7 @@ export default function ChatWindow() {
                               initial={{ opacity: 0, scale: 0.8, y: 8 }}
                               animate={{ opacity: 1, scale: 1, y: 0 }}
                               exit={{ opacity: 0, scale: 0.8, y: 8 }}
-                              className={cn("absolute -bottom-11 flex gap-0.5 bg-[#101826] rounded-full px-2 py-1.5 shadow-2xl border border-[#1B2434] z-30", isOwn ? "right-0" : "left-0")}
+                              className={cn("absolute -bottom-12 flex gap-0.5 bg-[#101826] rounded-full px-2 py-1.5 shadow-2xl border border-[#1B2434] z-30", isOwn ? "right-0" : "left-0")}
                             >
                               {QUICK_REACTIONS.map((emoji) => (
                                 <button key={emoji} className="text-lg hover:scale-125 transition-transform p-0.5" onClick={(e) => { e.stopPropagation(); handleReaction(msg.id, emoji); }}>{emoji}</button>
@@ -529,25 +500,48 @@ export default function ChatWindow() {
                       </div>
 
                       {msg.reactions && msg.reactions.length > 0 && (
-                        <div className={cn("flex gap-1 mt-1", isOwn ? "justify-end" : "justify-start")}>
+                        <div className={cn("flex gap-1 mt-0.5", isOwn ? "justify-end" : "justify-start")}>
                           {Object.entries(msg.reactions.reduce((acc, r) => { acc[r.emoji] = (acc[r.emoji] || 0) + 1; return acc; }, {} as Record<string, number>)).map(([emoji, count]) => (
-                            <span key={emoji} className="inline-flex items-center gap-0.5 px-2 py-0.5 bg-[#101826] rounded-full text-xs border border-[#1B2434] hover:bg-[#1B2434] cursor-pointer transition-colors">
+                            <span key={emoji} className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-[#101826] rounded-full text-xs border border-[#1B2434] hover:bg-[#1B2434] cursor-pointer transition-colors">
                               {emoji}{count > 1 && <span className="text-white/50">{count}</span>}
                             </span>
                           ))}
                         </div>
                       )}
 
-                      <div className={cn("flex items-center gap-1.5 mt-0.5 px-1", isOwn ? "justify-end" : "justify-start")}>
-                        <span className="text-[10px] text-white/25">{formatTime(msg.createdAt)}</span>
-                        {isOwn && (msg.reads && msg.reads.length > 0 ? <CheckCheck className="h-3.5 w-3.5 text-primary" /> : <Check className="h-3.5 w-3.5 text-white/25" />)}
-                        {msg.isEdited && <span className="text-[10px] text-white/25 italic">edited</span>}
-                      </div>
+                      {isLastInGroup && (
+                        <div className={cn("flex items-center gap-1 mt-0.5 px-1", isOwn ? "justify-end" : "justify-start")}>
+                          <span className="text-[10px] text-white/30">{formatTime(msg.createdAt)}</span>
+                          {isOwn && (
+                            msg.reads && msg.reads.length > 0
+                              ? <CheckCheck className="h-3.5 w-3.5 text-blue-400" />
+                              : <Check className="h-3.5 w-3.5 text-white/30" />
+                          )}
+                          {msg.isEdited && <span className="text-[10px] text-white/25 italic">edited</span>}
+                        </div>
+                      )}
                     </div>
                   </motion.div>
                 </div>
               );
             })}
+            {isOtherTyping && (
+              <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} className="flex gap-2 items-end">
+                <div className="w-8 flex-shrink-0">
+                  <Avatar className="h-8 w-8">
+                    <AvatarImage src={activeChat.avatar || undefined} />
+                    <AvatarFallback name={activeChat.name} className="text-xs" />
+                  </Avatar>
+                </div>
+                <div className="bg-[#101826] rounded-2xl rounded-bl-sm px-4 py-3">
+                  <div className="typing-indicator">
+                    <div className="typing-dot" />
+                    <div className="typing-dot" />
+                    <div className="typing-dot" />
+                  </div>
+                </div>
+              </motion.div>
+            )}
             <div ref={messagesEndRef} />
           </div>
         )}
@@ -567,12 +561,7 @@ export default function ChatWindow() {
       {/* Pending files preview */}
       <AnimatePresence>
         {pendingFiles.length > 0 && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            className="px-4 bg-[#101826] border-t border-[#1B2434]"
-          >
+          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="px-4 bg-[#101826] border-t border-[#1B2434]">
             <div className="flex gap-2 py-3 max-w-3xl mx-auto overflow-x-auto scrollbar-thin">
               {pendingFiles.map((pf, i) => (
                 <div key={i} className="relative flex-shrink-0 group">
@@ -584,10 +573,7 @@ export default function ChatWindow() {
                       <span className="text-[9px] text-white/40 text-center truncate w-full">{pf.file.name}</span>
                     </div>
                   )}
-                  <button
-                    onClick={() => removePendingFile(i)}
-                    className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                  >
+                  <button onClick={() => removePendingFile(i)} className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                     <X className="h-3 w-3 text-white" />
                   </button>
                   <span className="absolute bottom-1 right-1 text-[9px] text-white/40 bg-black/50 rounded px-1">{formatFileSize(pf.file.size)}</span>
@@ -616,10 +602,9 @@ export default function ChatWindow() {
 
       {/* Message Input */}
       <div className="px-4 py-3 border-t border-[#1B2434] bg-[#0B1220]/80 backdrop-blur-xl flex-shrink-0">
-        <div className="flex items-center gap-2 max-w-3xl mx-auto">
-          {/* Attachment */}
+        <div className="flex items-end gap-2 max-w-3xl mx-auto">
           <div className="relative">
-            <Button variant="ghost" size="icon" className="text-white/60 hover:text-white h-10 w-10" onClick={() => setShowAttachMenu(!showAttachMenu)}>
+            <Button variant="ghost" size="icon" className="text-white/60 hover:text-white h-11 w-11" onClick={() => setShowAttachMenu(!showAttachMenu)}>
               <Paperclip className="h-5 w-5" />
             </Button>
             <AnimatePresence>
@@ -658,7 +643,6 @@ export default function ChatWindow() {
             </AnimatePresence>
           </div>
 
-          {/* Input */}
           <div className="relative flex-1">
             <Input ref={inputRef} placeholder="Type a message..." value={inputValue} onChange={handleInputChange} onKeyDown={handleKeyDown}
               className="h-11 bg-[#101826] border-[#1B2434] rounded-xl pr-10 text-[14px]" />
@@ -688,7 +672,6 @@ export default function ChatWindow() {
             </AnimatePresence>
           </div>
 
-          {/* Voice / Send */}
           {inputValue.trim() || pendingFiles.length > 0 ? (
             <Button onClick={handleSend} disabled={uploading} className="h-11 w-11 rounded-xl gradient-primary shadow-lg shadow-primary/25 flex-shrink-0" size="icon">
               {uploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
@@ -735,28 +718,18 @@ export default function ChatWindow() {
       {/* Image Lightbox */}
       <AnimatePresence>
         {lightboxImage && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 cursor-pointer"
-            onClick={() => setLightboxImage(null)}
-          >
-            <motion.img
-              initial={{ scale: 0.8 }}
-              animate={{ scale: 1 }}
-              exit={{ scale: 0.8 }}
-              src={lightboxImage}
-              alt="Preview"
-              className="max-w-full max-h-full object-contain rounded-xl shadow-2xl"
-              onClick={(e) => e.stopPropagation()}
-            />
-            <button
-              className="absolute top-4 right-4 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full p-2 transition-colors"
-              onClick={() => setLightboxImage(null)}
-            >
-              <X className="h-6 w-6" />
-            </button>
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 cursor-pointer"
+            onClick={() => setLightboxImage(null)}>
+            <motion.div initial={{ scale: 0.8 }} animate={{ scale: 1 }} exit={{ scale: 0.8 }} className="relative max-w-full max-h-full" onClick={(e) => e.stopPropagation()}>
+              <img src={lightboxImage} alt="Preview" className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl" />
+              <button className="absolute -top-3 -right-3 text-white hover:text-red-400 bg-[#101826] border border-[#1B2434] rounded-full p-2 transition-colors" onClick={() => setLightboxImage(null)}>
+                <X className="h-5 w-5" />
+              </button>
+              <a href={lightboxImage} download className="absolute bottom-3 right-3 text-white hover:text-primary bg-[#101826]/80 border border-[#1B2434] rounded-full p-2 transition-colors">
+                <Download className="h-5 w-5" />
+              </a>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>

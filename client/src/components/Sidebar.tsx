@@ -154,7 +154,7 @@ export default function Sidebar() {
               <AvatarFallback name={user?.profile?.fullName || user?.username} />
             </Avatar>
           </motion.button>
-          <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-[#0B1220]" />
+          <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-[#0B1220] shadow-sm" />
         </div>
 
         {/* Logout */}

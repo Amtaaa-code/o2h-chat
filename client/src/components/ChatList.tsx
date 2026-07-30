@@ -288,8 +288,8 @@ export default function ChatList({ onViewStory }: { onViewStory?: (stories: any[
                         >
                           {chat.lastMessage
                             ? chat.type === "GROUP"
-                              ? `${chat.lastMessage.sender.username}: ${chat.lastMessage.content}`
-                              : truncate(chat.lastMessage.content, 35)
+                              ? `${chat.lastMessage.sender.username}: ${chat.lastMessage.content || "📎 Attachment"}`
+                              : truncate(chat.lastMessage.content || "📎 Attachment", 35)
                             : "Start a conversation"}
                         </p>
                         <div className="flex items-center gap-1.5 ml-2 flex-shrink-0">

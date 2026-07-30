@@ -229,11 +229,13 @@
   }
 
   .message-own {
-    @apply bg-primary text-white rounded-2xl rounded-br-sm;
+    @apply bg-primary text-white;
+    border-radius: 18px 18px 6px 18px;
   }
 
   .message-other {
-    @apply bg-[#101826] text-white rounded-2xl rounded-bl-sm;
+    @apply bg-[#101826] text-white;
+    border-radius: 18px 18px 18px 6px;
   }
 }
 
