@@ -33,6 +33,7 @@ import { Input } from "@/components/ui/input";
 import { useAppStore } from "@/lib/store";
 import { cn, getUploadUrl } from "@/lib/utils";
 import api from "@/lib/axios";
+import AddMembersDialog from "@/components/AddMembersDialog";
 
 export default function ProfilePanel() {
   const { activeChat, setProfilePanelOpen, user } = useAppStore();
@@ -46,6 +47,7 @@ export default function ProfilePanel() {
   const [groupDescription, setGroupDescription] = useState<string>("");
   const [editingDesc, setEditingDesc] = useState(false);
   const [descValue, setDescValue] = useState("");
+  const [showAddMembers, setShowAddMembers] = useState(false);
 
   useEffect(() => {
     if (!activeChat) return;
@@ -181,10 +183,34 @@ export default function ProfilePanel() {
       <ScrollArea className="flex-1">
         {/* Profile */}
         <div className="flex flex-col items-center py-6 px-4">
-          <Avatar className="h-28 w-28 mb-3">
-            <AvatarImage src={activeChat.avatar || undefined} />
-            <AvatarFallback name={activeChat.name} className="text-3xl" />
-          </Avatar>
+          <div className="relative group">
+            <Avatar className="h-28 w-28 mb-3">
+              <AvatarImage src={activeChat.avatar || undefined} />
+              <AvatarFallback name={activeChat.name} className="text-3xl" />
+            </Avatar>
+            {activeChat.type === "GROUP" && (
+              <label className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
+                <input type="file" accept="image/*" className="hidden" onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  try {
+                    const formData = new FormData();
+                    formData.append("files", file);
+                    const { data: uploadData } = await api.post("/upload", formData, {
+                      headers: { "Content-Type": "multipart/form-data" },
+                    });
+                    if (uploadData.success) {
+                      await api.put(`/groups/${activeChat.id}`, { avatar: uploadData.data[0].url });
+                      window.location.reload();
+                    }
+                  } catch (error) {
+                    console.error("Failed to upload avatar:", error);
+                  }
+                }} />
+                <span className="text-xs text-white font-medium">Change Photo</span>
+              </label>
+            )}
+          </div>
           <h3 className="text-lg font-bold text-white">{activeChat.name}</h3>
           <p className="text-sm text-white/40 mt-0.5">
             {activeChat.type === "PRIVATE"
@@ -450,6 +476,12 @@ export default function ProfilePanel() {
                 ))}
               </div>
             )}
+            <div className="px-4 pb-3">
+              <Button variant="outline" size="sm" onClick={() => setShowAddMembers(true)}
+                className="w-full border-[#1B2434] bg-white/5 hover:bg-white/10 text-white/70">
+                <UserPlus className="h-4 w-4 mr-2" /> Add Member
+              </Button>
+            </div>
             <Separator className="bg-[#1B2434]" />
           </>
         )}
@@ -466,6 +498,16 @@ export default function ProfilePanel() {
           </button>
         </div>
       </ScrollArea>
+
+      {/* Add Members Dialog */}
+      {activeChat.type === "GROUP" && (
+        <AddMembersDialog
+          open={showAddMembers}
+          onOpenChange={setShowAddMembers}
+          groupId={parseInt(activeChat.id)}
+          existingMemberIds={groupMembers.map((m: any) => m.user.id)}
+        />
+      )}
     </motion.div>
   );
 }

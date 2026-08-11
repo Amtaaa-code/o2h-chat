@@ -96,10 +96,11 @@ router.put('/:id', authMiddleware, async (req: any, res) => {
     });
     if (!membership) return res.status(403).json({ success: false, message: 'Only admin or owner can edit group' });
 
-    const { name, description } = req.body;
+    const { name, description, avatar } = req.body;
     const updateData: any = {};
     if (name) updateData.name = name;
     if (description !== undefined) updateData.description = description;
+    if (avatar !== undefined) updateData.avatar = avatar;
 
     const group = await prisma.group.update({
       where: { id: groupId },

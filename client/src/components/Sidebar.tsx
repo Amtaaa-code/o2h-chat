@@ -15,6 +15,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Moon,
+  Search,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
@@ -34,7 +35,7 @@ const menuItems = [
   { icon: Bell, label: "Notifications", id: "notifications", path: "/chat" },
 ];
 
-export default function Sidebar() {
+export default function Sidebar({ onSearch }: { onSearch?: () => void }) {
   const router = useRouter();
   const pathname = usePathname();
   const { user, sidebarCollapsed, setSidebarCollapsed, unreadNotificationCount } = useAppStore();
@@ -74,6 +75,30 @@ export default function Sidebar() {
         </div>
 
         <Separator className="w-8 bg-[#1B2434] mb-2" />
+
+        {/* Search */}
+        <motion.button
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          className="sidebar-item"
+          onClick={onSearch}
+          onMouseEnter={() => setHoveredItem("search")}
+          onMouseLeave={() => setHoveredItem(null)}
+        >
+          <Search className="h-5 w-5" />
+        </motion.button>
+        <AnimatePresence>
+          {hoveredItem === "search" && (
+            <motion.div
+              initial={{ opacity: 0, x: -4 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -4 }}
+              className="absolute left-full ml-3 px-3 py-1.5 bg-[#101826] rounded-xl text-xs text-white font-medium pointer-events-none whitespace-nowrap z-50 border border-[#1B2434] shadow-xl top-1/2 -translate-y-1/2"
+            >
+              Search
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Menu Items */}
         {menuItems.map((item) => {

@@ -12,6 +12,7 @@ import ProfilePanel from "@/components/ProfilePanel";
 import MobileNav from "@/components/MobileNav";
 import { StoryViewer } from "@/components/StoryComponents";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import GlobalSearch from "@/components/GlobalSearch";
 import api from "@/lib/axios";
 
 export default function ChatLayout({ children }: { children: React.ReactNode }) {
@@ -26,6 +27,7 @@ export default function ChatLayout({ children }: { children: React.ReactNode }) 
     user: any;
     index: number;
   } | null>(null);
+  const [showGlobalSearch, setShowGlobalSearch] = useState(false);
 
   useSocket();
 
@@ -80,7 +82,7 @@ export default function ChatLayout({ children }: { children: React.ReactNode }) 
       <ErrorBoundary>
         {/* Desktop Layout */}
         <div className="hidden md:flex w-full h-full">
-          <Sidebar />
+          <Sidebar onSearch={() => setShowGlobalSearch(true)} />
 
           <div
             className={`${
@@ -128,6 +130,9 @@ export default function ChatLayout({ children }: { children: React.ReactNode }) 
           />
         )}
       </AnimatePresence>
+
+      {/* Global Search */}
+      <GlobalSearch open={showGlobalSearch} onOpenChange={setShowGlobalSearch} />
     </div>
   );
 }
