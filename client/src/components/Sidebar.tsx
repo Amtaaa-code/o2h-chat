@@ -29,7 +29,7 @@ const menuItems = [
   { icon: Aperture, label: "Stories", id: "stories", path: "/chat" },
   { icon: Phone, label: "Calls", id: "calls", path: "/chat/calls" },
   { icon: Users, label: "Contacts", id: "contacts", path: "/chat/contacts" },
-  { icon: Star, label: "Starred", id: "starred", path: "/chat" },
+  { icon: Star, label: "Starred", id: "starred", path: "/chat/starred" },
   { icon: Archive, label: "Archived", id: "archived", path: "/chat" },
   { icon: Bell, label: "Notifications", id: "notifications", path: "/chat" },
 ];

@@ -79,8 +79,8 @@ model Contact {
   nickname  String?
   isBlocked Boolean  @default(false)
   isMuted   Boolean  @default(false)
-  isPinned  Boolean  @default(false)
-  createdAt DateTime @default(now())
+  isPinned    Boolean  @default(false)
+  createdAt   DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   owner     User     @relation("ContactOwner", fields: [ownerId], references: [id], onDelete: Cascade)
@@ -102,6 +102,7 @@ model Message {
   isEdited    Boolean     @default(false)
   isDeleted   Boolean     @default(false)
   isPinned    Boolean     @default(false)
+  isStarred   Boolean     @default(false)
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 

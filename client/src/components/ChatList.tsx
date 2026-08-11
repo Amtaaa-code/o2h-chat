@@ -290,8 +290,17 @@ export default function ChatList({ onViewStory }: { onViewStory?: (stories: any[
       <ScrollArea className="flex-1 px-2">
         <AnimatePresence>
           {loading ? (
-            <div className="flex items-center justify-center py-16">
-              <div className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+            <div className="space-y-1 p-2">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div key={i} className="flex items-center gap-3 p-3 rounded-xl animate-pulse">
+                  <div className="w-12 h-12 rounded-full bg-[#1B2434] flex-shrink-0" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-3 w-24 bg-[#1B2434] rounded" />
+                    <div className="h-2.5 w-36 bg-[#1B2434] rounded" />
+                  </div>
+                  <div className="h-2.5 w-8 bg-[#1B2434] rounded" />
+                </div>
+              ))}
             </div>
           ) : filteredChats.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">

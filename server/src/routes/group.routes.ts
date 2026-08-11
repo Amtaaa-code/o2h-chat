@@ -158,4 +158,46 @@ router.delete('/:id', authMiddleware, async (req: any, res) => {
   }
 });
 
+router.get('/:id/invite', authMiddleware, async (req: any, res) => {
+  try {
+    const groupId = parseInt(req.params.id);
+    const membership = await prisma.groupMember.findFirst({
+      where: { groupId, userId: req.userId },
+    });
+    if (!membership) return res.status(403).json({ success: false, message: 'Not a member' });
+    if (membership.role !== 'OWNER' && membership.role !== 'ADMIN') {
+      return res.status(403).json({ success: false, message: 'Only admin or owner can generate invite links' });
+    }
+
+    const inviteToken = `group_${groupId}_${Date.now()}`;
+    res.json({ success: true, data: { inviteLink: `/chat/join/${inviteToken}`, token: inviteToken } });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+
+router.post('/join/:token', authMiddleware, async (req: any, res) => {
+  try {
+    const token = req.params.token;
+    const groupId = parseInt(token.split('_')[1]);
+    if (!groupId) return res.status(400).json({ success: false, message: 'Invalid invite token' });
+
+    const group = await prisma.group.findUnique({ where: { id: groupId } });
+    if (!group) return res.status(404).json({ success: false, message: 'Group not found' });
+
+    const existing = await prisma.groupMember.findFirst({
+      where: { groupId, userId: req.userId },
+    });
+    if (existing) return res.json({ success: true, message: 'Already a member' });
+
+    await prisma.groupMember.create({
+      data: { groupId, userId: req.userId, role: 'MEMBER' },
+    });
+
+    res.json({ success: true, message: 'Joined group', data: { groupId, name: group.name } });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+
 export default router;

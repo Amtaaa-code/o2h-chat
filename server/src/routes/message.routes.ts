@@ -262,4 +262,48 @@ router.post('/:id/forward', authMiddleware, validate(forwardMessageSchema), asyn
   }
 });
 
+router.post('/:id/star', authMiddleware, async (req: any, res) => {
+  try {
+    const { id } = req.params;
+    const message = await prisma.message.findUnique({ where: { id: parseInt(id) } });
+    if (!message) return res.status(404).json({ success: false, message: 'Message not found' });
+
+    const updated = await prisma.message.update({
+      where: { id: parseInt(id) },
+      data: { isStarred: !message.isStarred },
+    });
+
+    res.json({ success: true, data: { isStarred: updated.isStarred } });
+  } catch (error) {
+    console.error('Star message error:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+
+router.get('/starred', authMiddleware, async (req: any, res) => {
+  try {
+    const userId = req.userId;
+    const messages = await prisma.message.findMany({
+      where: {
+        isStarred: true,
+        OR: [
+          { senderId: userId },
+          { chatType: 'PRIVATE', chatId: { contains: userId.toString() } },
+          { chatType: 'GROUP' },
+        ],
+      },
+      include: {
+        sender: { select: { id: true, username: true, avatar: true } },
+        attachments: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    res.json({ success: true, data: messages });
+  } catch (error) {
+    console.error('Get starred messages error:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+
 export default router;

@@ -53,6 +53,7 @@ interface Message {
   isEdited: boolean;
   isDeleted: boolean;
   isPinned: boolean;
+  isStarred: boolean;
   createdAt: string;
   updatedAt: string;
   sender: {

@@ -1,7 +1,0 @@
-fix: Phase 3D - notification sound, search, about data, mobile nav
-
-- Add notification sound on new message (plays when not viewing that chat)
-- Add in-chat search: filter messages, highlight matches, show count
-- Fix ProfilePanel About section: fetch real user bio and phone
-- Add mobile back button to Calls, Contacts, Settings pages
-- Refactor useSocket to track activeChat via ref for sound check

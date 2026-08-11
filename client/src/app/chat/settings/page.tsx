@@ -31,9 +31,11 @@ import { useAppStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import api from "@/lib/axios";
 import { useRouter } from "next/navigation";
+import { useToast } from "@/components/Toast";
 
 export default function SettingsPage() {
   const router = useRouter();
+  const { toast } = useToast();
   const { user, setUser } = useAppStore();
   const [activeSection, setActiveSection] = useState<string | null>(null);
   const [profileForm, setProfileForm] = useState({
@@ -104,11 +106,11 @@ export default function SettingsPage() {
 
   const handleChangePassword = async () => {
     if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-      alert("Passwords do not match");
+      toast("Passwords do not match", "error");
       return;
     }
     if (passwordForm.newPassword.length < 6) {
-      alert("Password must be at least 6 characters");
+      toast("Password must be at least 6 characters", "error");
       return;
     }
     try {
@@ -118,10 +120,10 @@ export default function SettingsPage() {
       });
       if (data.success) {
         setPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
-        alert("Password changed successfully");
+        toast("Password changed successfully", "success");
       }
     } catch (error: any) {
-      alert(error?.response?.data?.message || "Failed to change password");
+      toast(error.response?.data?.message || "Failed to change password", "error");
     }
   };
 
@@ -132,9 +134,10 @@ export default function SettingsPage() {
       await api.delete("/users/me");
       localStorage.removeItem("accessToken");
       localStorage.removeItem("refreshToken");
+      toast("Account deleted successfully", "success");
       router.push("/login");
     } catch (error) {
-      alert("Failed to delete account");
+      toast("Failed to delete account", "error");
     }
   };
 

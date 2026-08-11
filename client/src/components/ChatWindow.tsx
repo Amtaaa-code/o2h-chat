@@ -32,6 +32,7 @@ import {
   ListChecks,
   Loader2,
   Users,
+  Star,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -42,6 +43,7 @@ import { cn, formatTime, formatDate, formatFileSize, getUploadUrl } from "@/lib/
 import { useSocket } from "@/hooks/useSocket";
 import { useCall, CallScreen, IncomingCallDialog } from "@/components/CallComponents";
 import api from "@/lib/axios";
+import { useToast } from "@/components/Toast";
 
 interface Message {
   id: number;
@@ -53,6 +55,7 @@ interface Message {
   isEdited: boolean;
   isDeleted: boolean;
   isPinned: boolean;
+  isStarred: boolean;
   createdAt: string;
   updatedAt: string;
   sender: { id: number; username: string; avatar: string | null; profile?: { fullName: string } | null };
@@ -82,6 +85,7 @@ export default function ChatWindow() {
     profilePanelOpen, setProfilePanelOpen, setActiveChat, typingUsers,
   } = useAppStore();
   const { sendMessage, startTyping, stopTyping, markAsRead, emitSocket } = useSocket();
+  const { toast } = useToast();
   const {
     callState, incomingCall,
     initiateCall, acceptCall, rejectCall, endCall,
@@ -262,6 +266,7 @@ export default function ChatWindow() {
       }
     } catch (error) {
       console.error("Upload failed:", error);
+      toast("Failed to upload files", "error");
       setInputValue(savedInput);
       setPendingFiles(savedFiles);
     } finally {
@@ -277,9 +282,11 @@ export default function ChatWindow() {
         const { data } = await api.put(`/messages/${editingMessage.id}`, { content: editValue.trim() });
         if (data.success) {
           setMessages(messages.map((m) => m.id === editingMessage.id ? { ...m, content: editValue.trim(), isEdited: true } : m));
+          toast("Message edited", "success");
         }
       } catch (error) {
         console.error("Edit message failed:", error);
+        toast("Failed to edit message", "error");
       } finally {
         setEditingMessage(null);
         setEditValue("");
@@ -310,6 +317,7 @@ export default function ChatWindow() {
       }
     } catch (error) {
       console.error("Send message failed:", error);
+      toast("Failed to send message", "error");
       setInputValue(content);
     }
   };
@@ -342,6 +350,18 @@ export default function ChatWindow() {
     setSelectedMessage(null);
   };
 
+  const handleStar = async (messageId: number) => {
+    try {
+      const { data } = await api.post(`/messages/${messageId}/star`);
+      setMessages((msgs) =>
+        msgs.map((m) => (m.id === messageId ? { ...m, isStarred: data.data.isStarred } : m))
+      );
+    } catch (error) {
+      console.error("Star failed:", error);
+    }
+    setContextMenu(null);
+  };
+
   const handleForward = async (targetChat: { id: string; type: string; name: string }) => {
     if (!forwardMessage) return;
     try {
@@ -353,9 +373,11 @@ export default function ChatWindow() {
         const msg = { ...data.data, sender: { id: user!.id, username: user!.username, avatar: user!.avatar, profile: user!.profile } };
         addMessage(msg as any);
         emitSocket("message:delivered", msg);
+        toast("Message forwarded", "success");
       }
     } catch (error) {
       console.error("Forward failed:", error);
+      toast("Failed to forward message", "error");
     } finally {
       setForwardMessage(null);
       setShowForwardDialog(false);
@@ -651,6 +673,7 @@ export default function ChatWindow() {
                               : <Check className="h-3.5 w-3.5 text-white/30" />
                           )}
                           {msg.isEdited && <span className="text-[10px] text-white/25 italic">edited</span>}
+                          {msg.isStarred && <Star className="h-3 w-3 text-yellow-400 fill-yellow-400" />}
                         </div>
                       )}
                     </div>
@@ -852,6 +875,7 @@ export default function ChatWindow() {
               ...(contextMenu.msg.content ? [{ icon: Copy, label: "Copy", action: () => handleCopy(contextMenu.msg.content!) }] : []),
               { icon: Forward, label: "Forward", action: () => { setForwardMessage(contextMenu.msg); setShowForwardDialog(true); setContextMenu(null); } },
               { icon: Pin, label: contextMenu.msg.isPinned ? "Unpin" : "Pin", action: () => setContextMenu(null) },
+              { icon: Star, label: contextMenu.msg.isStarred ? "Unstar" : "Star", action: () => handleStar(contextMenu.msg.id) },
               ...(contextMenu.msg.senderId === user?.id ? [{ icon: Edit3, label: "Edit", action: () => { setEditingMessage(contextMenu.msg); setEditValue(contextMenu.msg.content || ""); setContextMenu(null); inputRef.current?.focus(); } }] : []),
               { icon: Trash2, label: "Delete", danger: true, action: () => { emitSocket("message:delete", { messageId: contextMenu.msg.id }); setContextMenu(null); } },
             ].map((item) => (
