@@ -333,7 +333,13 @@ export default function ChatList({ onViewStory }: { onViewStory?: (stories: any[
                     exit={{ opacity: 0, y: -8 }}
                     whileTap={{ scale: 0.98 }}
                     className={cn("chat-item", isActiveChat && "active")}
-                    onClick={() => setActiveChat(chat)}
+                    onClick={() => {
+                      setActiveChat(chat);
+                      if (chat.unreadCount > 0) {
+                        setChats((prev) => prev.map((c) => c.id === chat.id ? { ...c, unreadCount: 0 } : c));
+                        api.post(`/messages/${chat.type}/${chat.id}/read`).catch(() => {});
+                      }
+                    }}
                     onContextMenu={(e) => handleContextMenu(e, chat.id)}
                   >
                     {/* Avatar */}

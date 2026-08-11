@@ -324,4 +324,67 @@ router.post('/:id/pin', authMiddleware, async (req: any, res) => {
   }
 });
 
+router.post('/:chatType/:chatId/read', authMiddleware, async (req: any, res) => {
+  try {
+    const { chatType, chatId } = req.params;
+    const userId = req.userId;
+
+    const unreadMessages = await prisma.message.findMany({
+      where: {
+        chatType: chatType as any,
+        chatId,
+        senderId: { not: userId },
+        reads: { none: { userId } },
+      },
+      select: { id: true },
+    });
+
+    if (unreadMessages.length > 0) {
+      await prisma.messageRead.createMany({
+        data: unreadMessages.map((m) => ({ messageId: m.id, userId })),
+        skipDuplicates: true,
+      });
+    }
+
+    res.json({ success: true, data: { marked: unreadMessages.length } });
+  } catch (error) {
+    console.error('Mark read error:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+
+router.get('/:chatType/:chatId/export', authMiddleware, async (req: any, res) => {
+  try {
+    const { chatType, chatId } = req.params;
+    const format = (req.query.format as string) || 'json';
+
+    const messages = await prisma.message.findMany({
+      where: { chatType: chatType as any, chatId, isDeleted: false },
+      include: {
+        sender: { select: { id: true, username: true } },
+        attachments: true,
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    if (format === 'text') {
+      const text = messages.map((m) => {
+        const time = m.createdAt.toISOString();
+        const sender = m.sender.username;
+        const content = m.content || (m.attachments.length > 0 ? `[${m.type}]` : '');
+        return `[${time}] ${sender}: ${content}`;
+      }).join('\n');
+
+      res.setHeader('Content-Type', 'text/plain');
+      res.setHeader('Content-Disposition', `attachment; filename="chat-${chatId}.txt"`);
+      return res.send(text);
+    }
+
+    res.json({ success: true, data: messages });
+  } catch (error) {
+    console.error('Export messages error:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+
 export default router;

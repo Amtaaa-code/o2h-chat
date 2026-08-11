@@ -23,6 +23,7 @@ import {
   UserPlus,
   Copy,
   Check,
+  Download,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -149,6 +150,24 @@ export default function ProfilePanel() {
       setEditingDesc(false);
     } catch (error) {
       console.error("Failed to update description:", error);
+    }
+  };
+
+  const handleExportChat = async (format: 'json' | 'text') => {
+    if (!activeChat) return;
+    try {
+      const { data } = await api.get(`/messages/${activeChat.type}/${activeChat.id}/export?format=${format}`);
+      if (format === 'json') {
+        const blob = new Blob([JSON.stringify(data.data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `chat-${activeChat.name}-${Date.now()}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+    } catch (error) {
+      console.error("Export failed:", error);
     }
   };
 
@@ -401,6 +420,14 @@ export default function ProfilePanel() {
             </div>
             <span className="flex-1 text-left text-sm text-white">Storage</span>
             <span className="text-sm text-white/40">2.4 GB</span>
+          </button>
+
+          <button className="w-full flex items-center gap-4 px-4 py-3 hover:bg-white/5 transition-colors" onClick={() => handleExportChat('json')}>
+            <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center">
+              <Download className="h-5 w-5 text-white/60" />
+            </div>
+            <span className="flex-1 text-left text-sm text-white">Export Chat</span>
+            <ChevronRight className="h-4 w-4 text-white/30" />
           </button>
         </div>
 
