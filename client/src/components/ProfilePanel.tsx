@@ -20,6 +20,9 @@ import {
   Lock,
   Info,
   Users,
+  UserPlus,
+  Copy,
+  Check,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -31,11 +34,14 @@ import { cn, getUploadUrl } from "@/lib/utils";
 import api from "@/lib/axios";
 
 export default function ProfilePanel() {
-  const { activeChat, setProfilePanelOpen } = useAppStore();
+  const { activeChat, setProfilePanelOpen, user } = useAppStore();
   const [activeSection, setActiveSection] = useState<string | null>(null);
   const [mediaData, setMediaData] = useState<{ images: any[]; documents: any[]; links: any[] }>({ images: [], documents: [], links: [] });
   const [loadingMedia, setLoadingMedia] = useState(false);
   const [chatUserData, setChatUserData] = useState<any>(null);
+  const [inviteLink, setInviteLink] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [groupMembers, setGroupMembers] = useState<any[]>([]);
 
   useEffect(() => {
     if (!activeChat) return;
@@ -45,6 +51,10 @@ export default function ProfilePanel() {
         if (activeChat.type === 'PRIVATE') {
           const { data: userData } = await api.get(`/users/${activeChat.id}`);
           if (userData.success) setChatUserData(userData.data);
+        }
+        if (activeChat.type === 'GROUP') {
+          const { data: membersData } = await api.get(`/groups/${activeChat.id}`);
+          if (membersData.success) setGroupMembers(membersData.data?.members || []);
         }
         const { data } = await api.get(`/messages/${activeChat.type}/${activeChat.id}?limit=200`);
         if (data.success) {
@@ -77,6 +87,50 @@ export default function ProfilePanel() {
     };
     fetchData();
   }, [activeChat?.id]);
+
+  const handleGenerateInvite = async () => {
+    if (!activeChat || activeChat.type !== 'GROUP') return;
+    try {
+      const { data } = await api.get(`/groups/${activeChat.id}/invite`);
+      if (data.success) {
+        const fullLink = `${window.location.origin}${data.data.inviteLink}`;
+        setInviteLink(fullLink);
+      }
+    } catch (error) {
+      console.error("Failed to generate invite:", error);
+    }
+  };
+
+  const handleCopyInvite = () => {
+    if (!inviteLink) return;
+    navigator.clipboard.writeText(inviteLink);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleKickMember = async (memberUserId: number) => {
+    if (!activeChat || activeChat.type !== 'GROUP') return;
+    try {
+      await api.post(`/groups/${activeChat.id}/kick`, { userId: memberUserId });
+      setGroupMembers((prev) => prev.filter((m) => m.user.id !== memberUserId));
+    } catch (error) {
+      console.error("Failed to kick member:", error);
+    }
+  };
+
+  const handleToggleAdmin = async (memberUserId: number) => {
+    if (!activeChat || activeChat.type !== 'GROUP') return;
+    try {
+      const { data } = await api.post(`/groups/${activeChat.id}/promote`, { userId: memberUserId });
+      if (data.success) {
+        setGroupMembers((prev) => prev.map((m) =>
+          m.user.id === memberUserId ? { ...m, role: m.role === 'ADMIN' ? 'MEMBER' : 'ADMIN' } : m
+        ));
+      }
+    } catch (error) {
+      console.error("Failed to toggle admin:", error);
+    }
+  };
 
   if (!activeChat) return null;
 
@@ -314,11 +368,55 @@ export default function ProfilePanel() {
         {/* Group members (if group) */}
         {activeChat.type === "GROUP" && (
           <>
-            <div className="px-4 py-3">
-              <p className="text-xs text-white/40 mb-2">
+            <div className="px-4 py-3 space-y-2">
+              <p className="text-xs text-white/40">
                 {activeChat.memberCount || 0} Participants
               </p>
+              {!inviteLink ? (
+                <Button variant="outline" size="sm" onClick={handleGenerateInvite}
+                  className="w-full border-[#1B2434] bg-white/5 hover:bg-white/10 text-white/70">
+                  <UserPlus className="h-4 w-4 mr-2" /> Invite via Link
+                </Button>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 bg-[#0B1220] rounded-lg px-3 py-2 text-xs text-white/50 truncate border border-[#1B2434]">
+                    {inviteLink}
+                  </div>
+                  <Button variant="ghost" size="icon" onClick={handleCopyInvite} className="h-8 w-8 flex-shrink-0">
+                    {copied ? <Check className="h-4 w-4 text-green-400" /> : <Copy className="h-4 w-4 text-white/50" />}
+                  </Button>
+                </div>
+              )}
             </div>
+            {groupMembers.length > 0 && (
+              <div className="px-4 pb-3 space-y-1">
+                {groupMembers.map((member: any) => (
+                  <div key={member.user.id} className="flex items-center gap-3 py-2 px-2 rounded-lg hover:bg-white/5 transition-colors group">
+                    <Avatar className="h-8 w-8">
+                      <AvatarImage src={member.user.avatar || undefined} />
+                      <AvatarFallback name={member.user.username} />
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-white truncate">
+                        {member.user.username}
+                        {member.user.id === user?.id && <span className="text-white/30 text-xs ml-1">(You)</span>}
+                      </p>
+                      <p className="text-xs text-white/40">{member.role}</p>
+                    </div>
+                    {member.user.id !== user?.id && member.role !== 'OWNER' && (
+                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Button variant="ghost" size="sm" onClick={() => handleToggleAdmin(member.user.id)} className="h-7 text-xs text-white/50 hover:text-white">
+                          {member.role === 'ADMIN' ? 'Demote' : 'Admin'}
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => handleKickMember(member.user.id)} className="h-7 text-xs text-red-400 hover:text-red-300">
+                          Kick
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
             <Separator className="bg-[#1B2434]" />
           </>
         )}

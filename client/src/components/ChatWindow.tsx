@@ -96,6 +96,7 @@ export default function ChatWindow() {
   const [isTyping, setIsTyping] = useState(false);
   const [selectedMessage, setSelectedMessage] = useState<number | null>(null);
   const [contextMenu, setContextMenu] = useState<{ msg: Message; x: number; y: number } | null>(null);
+  const [showReactionPicker, setShowReactionPicker] = useState(false);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [forwardMessage, setForwardMessage] = useState<Message | null>(null);
   const [showForwardDialog, setShowForwardDialog] = useState(false);
@@ -115,6 +116,7 @@ export default function ChatWindow() {
   const [showSearch, setShowSearch] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [searchResults, setSearchResults] = useState<number[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout>(null);
@@ -395,6 +397,29 @@ export default function ChatWindow() {
     setSelectedMessage(null);
   };
 
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length > 0) {
+      const newPending = files.map((file) => ({
+        file,
+        preview: file.type.startsWith("image/") ? URL.createObjectURL(file) : undefined,
+      }));
+      setPendingFiles((prev) => [...prev, ...newPending]);
+    }
+  };
+
   useEffect(() => {
     const handleClick = () => { setContextMenu(null); setSelectedMessage(null); };
     document.addEventListener("click", handleClick);
@@ -440,8 +465,21 @@ export default function ChatWindow() {
   }
 
   return (
-    <div className="h-full flex flex-col bg-[#060B16]">
+    <div className="h-full flex flex-col bg-[#060B16]"
+      onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
       {incomingCallDialog}
+
+      {/* Drag Overlay */}
+      {isDragging && (
+        <div className="absolute inset-0 z-50 bg-primary/10 border-2 border-dashed border-primary/50 flex items-center justify-center backdrop-blur-sm">
+          <div className="flex flex-col items-center gap-3">
+            <div className="w-16 h-16 rounded-2xl bg-primary/20 flex items-center justify-center">
+              <Paperclip className="h-8 w-8 text-primary" />
+            </div>
+            <p className="text-white font-medium">Drop files here to send</p>
+          </div>
+        </div>
+      )}
 
       {/* Chat Header */}
       <div className="h-16 px-4 flex items-center justify-between border-b border-[#1B2434] bg-[#0B1220]/80 backdrop-blur-xl flex-shrink-0 z-10">
@@ -869,7 +907,17 @@ export default function ChatWindow() {
               {QUICK_REACTIONS.map((emoji) => (
                 <button key={emoji} className="text-lg hover:scale-125 transition-transform p-0.5" onClick={() => handleReaction(contextMenu.msg.id, emoji)}>{emoji}</button>
               ))}
+              <button className="text-lg hover:scale-125 transition-transform p-0.5 text-white/40" onClick={() => setShowReactionPicker(!showReactionPicker)}>+</button>
             </div>
+            {showReactionPicker && (
+              <div className="px-2 pb-2 border-b border-[#1B2434] mb-1">
+                <div className="grid grid-cols-8 gap-0.5 max-h-[120px] overflow-y-auto scrollbar-thin">
+                  {EMOJI_CATEGORIES.flatMap((cat) => cat.emojis).slice(0, 48).map((emoji) => (
+                    <button key={emoji} className="text-lg p-1 rounded-lg hover:bg-white/10 transition-colors" onClick={() => { handleReaction(contextMenu.msg.id, emoji); setShowReactionPicker(false); }}>{emoji}</button>
+                  ))}
+                </div>
+              </div>
+            )}
             {[
               { icon: Reply, label: "Reply", action: () => { setReplyTo(contextMenu.msg); setContextMenu(null); inputRef.current?.focus(); } },
               ...(contextMenu.msg.content ? [{ icon: Copy, label: "Copy", action: () => handleCopy(contextMenu.msg.content!) }] : []),

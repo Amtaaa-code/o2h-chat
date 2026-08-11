@@ -147,6 +147,51 @@ router.post('/:id/leave', authMiddleware, async (req: any, res) => {
   }
 });
 
+router.post('/:id/kick', authMiddleware, async (req: any, res) => {
+  try {
+    const groupId = parseInt(req.params.id);
+    const { userId: targetUserId } = req.body;
+
+    const caller = await prisma.groupMember.findFirst({ where: { groupId, userId: req.userId } });
+    if (!caller || (caller.role !== 'OWNER' && caller.role !== 'ADMIN')) {
+      return res.status(403).json({ success: false, message: 'Only owner or admin can kick members' });
+    }
+
+    const target = await prisma.groupMember.findFirst({ where: { groupId, userId: targetUserId } });
+    if (!target) return res.status(404).json({ success: false, message: 'User not in group' });
+    if (target.role === 'OWNER') return res.status(403).json({ success: false, message: 'Cannot kick the owner' });
+
+    await prisma.groupMember.delete({ where: { id: target.id } });
+    res.json({ success: true, message: 'Member kicked' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+
+router.post('/:id/promote', authMiddleware, async (req: any, res) => {
+  try {
+    const groupId = parseInt(req.params.id);
+    const { userId: targetUserId } = req.body;
+
+    const caller = await prisma.groupMember.findFirst({ where: { groupId, userId: req.userId } });
+    if (!caller || caller.role !== 'OWNER') {
+      return res.status(403).json({ success: false, message: 'Only owner can promote members' });
+    }
+
+    const target = await prisma.groupMember.findFirst({ where: { groupId, userId: targetUserId } });
+    if (!target) return res.status(404).json({ success: false, message: 'User not in group' });
+
+    await prisma.groupMember.update({
+      where: { id: target.id },
+      data: { role: target.role === 'ADMIN' ? 'MEMBER' : 'ADMIN' },
+    });
+
+    res.json({ success: true, message: 'Role updated' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+
 router.delete('/:id', authMiddleware, async (req: any, res) => {
   try {
     await prisma.group.deleteMany({
