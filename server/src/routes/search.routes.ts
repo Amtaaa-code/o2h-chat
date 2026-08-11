@@ -1,9 +1,8 @@
 import { Router } from 'express';
-import { PrismaClient } from '@prisma/client';
+import prisma from '../lib/prisma';
 import { authMiddleware } from '../middleware/auth';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 router.get('/', authMiddleware, async (req: any, res) => {
   try {
@@ -30,8 +29,16 @@ router.get('/', authMiddleware, async (req: any, res) => {
 
     if (type === 'messages') {
       const messages = await prisma.message.findMany({
-        where: { content: { contains: query }, senderId: req.userId },
+        where: {
+          content: { contains: query },
+          isDeleted: false,
+          OR: [
+            { senderId: req.userId },
+            { chatId: { contains: String(req.userId) } },
+          ],
+        },
         include: { sender: { select: { id: true, username: true, avatar: true } } },
+        orderBy: { createdAt: 'desc' },
         take: 50,
       });
       return res.json({ success: true, data: messages });

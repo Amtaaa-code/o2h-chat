@@ -24,7 +24,7 @@ const upload = multer({
     const allowed = /jpeg|jpg|png|gif|mp4|mp3|pdf|doc|docx|xls|xlsx|ppt|pptx|txt|zip|webp/;
     const ext = allowed.test(path.extname(file.originalname).toLowerCase());
     const mime = allowed.test(file.mimetype);
-    if (ext || mime) cb(null, true);
+    if (ext && mime) cb(null, true);
     else cb(new Error('File type not allowed'));
   },
 });

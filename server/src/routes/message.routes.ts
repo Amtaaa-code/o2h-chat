@@ -1,9 +1,8 @@
 import { Router } from 'express';
-import { PrismaClient } from '@prisma/client';
+import prisma from '../lib/prisma';
 import { authMiddleware } from '../middleware/auth';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 router.get('/conversations', authMiddleware, async (req: any, res) => {
   try {
@@ -51,13 +50,22 @@ router.get('/conversations', authMiddleware, async (req: any, res) => {
       const contact = await prisma.contact.findFirst({
         where: { ownerId: userId, targetId: u.id },
       });
+      const unreadCount = await prisma.message.count({
+        where: {
+          chatType: 'PRIVATE',
+          chatId,
+          senderId: u.id,
+          isDeleted: false,
+          reads: { none: { userId } },
+        },
+      });
       return {
         id: String(u.id),
         type: 'PRIVATE' as const,
         name: contact?.nickname || u.profile?.fullName || u.username,
         avatar: u.avatar,
         lastMessage: lastMsg ? { content: lastMsg.content, createdAt: lastMsg.createdAt.toISOString(), sender: { username: lastMsg.sender.username } } : undefined,
-        unreadCount: 0,
+        unreadCount,
         isOnline: u.isOnline,
         isPinned: contact?.isPinned || false,
         isMuted: contact?.isMuted || false,
@@ -157,6 +165,9 @@ router.put('/:id', authMiddleware, async (req: any, res) => {
 
 router.delete('/:id', authMiddleware, async (req: any, res) => {
   try {
+    const message = await prisma.message.findUnique({ where: { id: parseInt(req.params.id) } });
+    if (!message) return res.status(404).json({ success: false, message: 'Message not found' });
+    if (message.senderId !== req.userId) return res.status(403).json({ success: false, message: 'Not authorized to delete this message' });
     await prisma.message.update({
       where: { id: parseInt(req.params.id) },
       data: { isDeleted: true, content: null },

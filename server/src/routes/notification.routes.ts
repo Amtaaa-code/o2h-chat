@@ -1,9 +1,8 @@
 import { Router } from 'express';
-import { PrismaClient } from '@prisma/client';
+import prisma from '../lib/prisma';
 import { authMiddleware } from '../middleware/auth';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 router.get('/', authMiddleware, async (req: any, res) => {
   try {
@@ -20,6 +19,9 @@ router.get('/', authMiddleware, async (req: any, res) => {
 
 router.put('/:id/read', authMiddleware, async (req: any, res) => {
   try {
+    const notification = await prisma.notification.findUnique({ where: { id: parseInt(req.params.id) } });
+    if (!notification) return res.status(404).json({ success: false, message: 'Notification not found' });
+    if (notification.userId !== req.userId) return res.status(403).json({ success: false, message: 'Not authorized' });
     await prisma.notification.update({
       where: { id: parseInt(req.params.id) },
       data: { isRead: true },

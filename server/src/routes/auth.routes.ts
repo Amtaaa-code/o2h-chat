@@ -1,13 +1,12 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
-import { PrismaClient } from '@prisma/client';
+import prisma from '../lib/prisma';
 import { generateTokens, verifyRefreshToken } from '../lib/jwt';
 import { authMiddleware } from '../middleware/auth';
 import { z } from 'zod';
 import { validate } from '../middleware/validate';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 const registerSchema = z.object({
   email: z.string().email('Invalid email address'),

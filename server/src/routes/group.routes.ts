@@ -1,9 +1,8 @@
 import { Router } from 'express';
-import { PrismaClient } from '@prisma/client';
+import prisma from '../lib/prisma';
 import { authMiddleware } from '../middleware/auth';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 router.get('/', authMiddleware, async (req: any, res) => {
   try {
@@ -67,6 +66,11 @@ router.post('/:id/members', authMiddleware, async (req: any, res) => {
     const { userIds } = req.body;
     const groupId = parseInt(req.params.id);
     
+    const adminCheck = await prisma.groupMember.findFirst({
+      where: { groupId, userId: req.userId, role: { in: ['ADMIN', 'OWNER'] } },
+    });
+    if (!adminCheck) return res.status(403).json({ success: false, message: 'Only admins can add members' });
+    
     const members = await Promise.all(
       userIds.map((userId: number) =>
         prisma.groupMember.create({
@@ -83,8 +87,16 @@ router.post('/:id/members', authMiddleware, async (req: any, res) => {
 
 router.delete('/:id/members/:memberId', authMiddleware, async (req: any, res) => {
   try {
+    const groupId = parseInt(req.params.id);
+    const memberId = parseInt(req.params.memberId);
+    
+    const adminCheck = await prisma.groupMember.findFirst({
+      where: { groupId, userId: req.userId, role: { in: ['ADMIN', 'OWNER'] } },
+    });
+    if (!adminCheck) return res.status(403).json({ success: false, message: 'Only admins can remove members' });
+    
     await prisma.groupMember.deleteMany({
-      where: { groupId: parseInt(req.params.id), userId: parseInt(req.params.memberId) },
+      where: { groupId, userId: memberId },
     });
     res.json({ success: true, message: 'Member removed' });
   } catch (error) {

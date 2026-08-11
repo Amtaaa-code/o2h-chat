@@ -67,9 +67,7 @@ const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 1000,
   message: 'Too many requests from this IP, please try again later.',
-  skip: (req) => {
-    return req.path === '/health' || req.path.startsWith('/auth');
-  },
+  skip: (req) => req.path === '/health',
 });
 app.use('/api', limiter);
 
@@ -121,8 +119,7 @@ setupSocket(io);
 async function seedAdmin() {
   try {
     const bcrypt = await import('bcryptjs');
-    const { PrismaClient } = await import('@prisma/client');
-    const prisma = new PrismaClient();
+    const { default: prisma } = await import('./lib/prisma');
     const email = 'admin@o2h.com';
     const existing = await prisma.user.findUnique({ where: { email } });
     if (!existing) {
