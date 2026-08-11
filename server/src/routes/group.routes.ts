@@ -18,14 +18,29 @@ const addMembersSchema = z.object({
 
 router.get('/', authMiddleware, async (req: any, res) => {
   try {
+    const userId = req.userId;
     const groups = await prisma.group.findMany({
-      where: { members: { some: { userId: req.userId } } },
+      where: { members: { some: { userId } } },
       include: {
         creator: { select: { id: true, username: true, avatar: true } },
         members: { include: { user: { select: { id: true, username: true, avatar: true, isOnline: true } } } },
       },
     });
-    res.json({ success: true, data: groups });
+
+    const groupsWithMeta = await Promise.all(groups.map(async (group) => {
+      const lastMsg = await prisma.groupMessage.findFirst({
+        where: { groupId: group.id },
+        include: { sender: { select: { id: true, username: true } } },
+        orderBy: { createdAt: 'desc' },
+      });
+      return {
+        ...group,
+        lastMessage: lastMsg ? { content: lastMsg.content, createdAt: lastMsg.createdAt.toISOString(), sender: { username: lastMsg.sender.username } } : null,
+        unreadCount: 0,
+      };
+    }));
+
+    res.json({ success: true, data: groupsWithMeta });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Internal server error' });
   }

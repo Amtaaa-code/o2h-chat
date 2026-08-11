@@ -103,7 +103,7 @@ interface AppState {
   updateChat: (chatId: string, data: Partial<Chat>) => void;
 
   messages: Message[];
-  setMessages: (messages: Message[]) => void;
+  setMessages: (messages: Message[] | ((prev: Message[]) => Message[])) => void;
   addMessage: (message: Message) => void;
   updateMessage: (messageId: number, data: Partial<Message>) => void;
 
@@ -145,7 +145,10 @@ export const useAppStore = create<AppState>((set) => ({
     })),
 
   messages: [],
-  setMessages: (messages) => set({ messages }),
+  setMessages: (messagesOrFn) =>
+    set((state) => ({
+      messages: typeof messagesOrFn === 'function' ? messagesOrFn(state.messages) : messagesOrFn,
+    })),
   addMessage: (message) =>
     set((state) => {
       const exists = state.messages.some((m) => m.id === message.id);

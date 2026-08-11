@@ -37,7 +37,7 @@ const menuItems = [
 export default function Sidebar() {
   const router = useRouter();
   const pathname = usePathname();
-  const { user, sidebarCollapsed, setSidebarCollapsed } = useAppStore();
+  const { user, sidebarCollapsed, setSidebarCollapsed, unreadNotificationCount } = useAppStore();
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
 
   const handleLogout = async () => {
@@ -89,7 +89,7 @@ export default function Sidebar() {
                 onMouseLeave={() => setHoveredItem(null)}
               >
                 <item.icon className="h-5 w-5" />
-                {item.id === "notifications" && (
+                {item.id === "notifications" && unreadNotificationCount > 0 && (
                   <span className="badge-dot bg-red-500" />
                 )}
               </motion.button>

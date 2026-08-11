@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
   X,
@@ -27,40 +27,58 @@ import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAppStore } from "@/lib/store";
-import { cn } from "@/lib/utils";
+import { cn, getUploadUrl } from "@/lib/utils";
+import api from "@/lib/axios";
 
 export default function ProfilePanel() {
   const { activeChat, setProfilePanelOpen } = useAppStore();
   const [activeSection, setActiveSection] = useState<string | null>(null);
+  const [mediaData, setMediaData] = useState<{ images: any[]; documents: any[]; links: any[] }>({ images: [], documents: [], links: [] });
+  const [loadingMedia, setLoadingMedia] = useState(false);
+
+  useEffect(() => {
+    if (!activeChat) return;
+    const fetchMedia = async () => {
+      setLoadingMedia(true);
+      try {
+        const { data } = await api.get(`/messages/${activeChat.type}/${activeChat.id}?limit=200`);
+        if (data.success) {
+          const messages = data.data || [];
+          const images: any[] = [];
+          const documents: any[] = [];
+          const links: any[] = [];
+          for (const msg of messages) {
+            if (msg.attachments) {
+              for (const att of msg.attachments) {
+                if (att.mimeType.startsWith("image/") || att.mimeType.startsWith("video/")) {
+                  images.push(att);
+                } else {
+                  documents.push(att);
+                }
+              }
+            }
+            if (msg.content) {
+              const urlMatch = msg.content.match(/https?:\/\/[^\s]+/g);
+              if (urlMatch) links.push(...urlMatch.map((url: string) => ({ url })));
+            }
+          }
+          setMediaData({ images, documents, links });
+        }
+      } catch (error) {
+        console.error("Failed to fetch media:", error);
+      } finally {
+        setLoadingMedia(false);
+      }
+    };
+    fetchMedia();
+  }, [activeChat?.id]);
 
   if (!activeChat) return null;
 
   const sections = [
-    {
-      icon: ImageIcon,
-      label: "Media, Links, and Docs",
-      count: 24,
-      id: "media",
-    },
-    {
-      icon: FileText,
-      label: "Documents",
-      count: 12,
-      id: "docs",
-    },
-    {
-      icon: Link,
-      label: "Shared Links",
-      count: 8,
-      id: "links",
-    },
-  ];
-
-  const mediaItems = [
-    { type: "image", url: null, label: "Photo 1" },
-    { type: "image", url: null, label: "Photo 2" },
-    { type: "video", url: null, label: "Video 1" },
-    { type: "doc", url: null, label: "Document.pdf" },
+    { icon: ImageIcon, label: "Media, Links, and Docs", count: mediaData.images.length, id: "media" },
+    { icon: FileText, label: "Documents", count: mediaData.documents.length, id: "docs" },
+    { icon: Link, label: "Shared Links", count: mediaData.links.length, id: "links" },
   ];
 
   return (
@@ -161,26 +179,76 @@ export default function ProfilePanel() {
             animate={{ height: "auto", opacity: 1 }}
             className="px-4 pb-4"
           >
-            <div className="grid grid-cols-3 gap-1.5 rounded-xl overflow-hidden">
-              {mediaItems.map((item, i) => (
-                <div
-                  key={i}
-                  className="aspect-square bg-[#101826] border border-[#1B2434] rounded-xl flex items-center justify-center"
-                >
-                  {item.type === "image" ? (
-                    <ImageIcon className="h-6 w-6 text-white/20" />
-                  ) : item.type === "video" ? (
-                    <div className="relative">
-                      <div className="w-10 h-10 bg-primary/20 rounded-full flex items-center justify-center">
-                        <div className="w-0 h-0 border-l-[8px] border-l-primary border-y-[5px] border-y-transparent ml-0.5" />
-                      </div>
+            {loadingMedia ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="w-6 h-6 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+              </div>
+            ) : mediaData.images.length === 0 ? (
+              <p className="text-center text-white/30 text-sm py-4">No media yet</p>
+            ) : (
+              <div className="grid grid-cols-3 gap-1.5 rounded-xl overflow-hidden">
+                {mediaData.images.slice(0, 12).map((item, i) => (
+                  <div key={i} className="aspect-square bg-[#101826] border border-[#1B2434] rounded-xl overflow-hidden">
+                    <img src={getUploadUrl(item.url)} alt="" className="w-full h-full object-cover" loading="lazy" />
+                  </div>
+                ))}
+              </div>
+            )}
+          </motion.div>
+        )}
+
+        {activeSection === "docs" && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            className="px-4 pb-4"
+          >
+            {loadingMedia ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="w-6 h-6 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+              </div>
+            ) : mediaData.documents.length === 0 ? (
+              <p className="text-center text-white/30 text-sm py-4">No documents yet</p>
+            ) : (
+              <div className="space-y-2">
+                {mediaData.documents.map((doc, i) => (
+                  <a key={i} href={getUploadUrl(doc.url)} target="_blank" rel="noopener noreferrer"
+                    className="flex items-center gap-3 p-3 bg-white/5 rounded-xl hover:bg-white/10 transition-colors">
+                    <FileText className="h-5 w-5 text-primary flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-white truncate">{doc.originalName}</p>
+                      <p className="text-xs text-white/40">{(doc.size / 1024).toFixed(1)} KB</p>
                     </div>
-                  ) : (
-                    <FileText className="h-6 w-6 text-white/20" />
-                  )}
-                </div>
-              ))}
-            </div>
+                  </a>
+                ))}
+              </div>
+            )}
+          </motion.div>
+        )}
+
+        {activeSection === "links" && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            className="px-4 pb-4"
+          >
+            {loadingMedia ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="w-6 h-6 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+              </div>
+            ) : mediaData.links.length === 0 ? (
+              <p className="text-center text-white/30 text-sm py-4">No links yet</p>
+            ) : (
+              <div className="space-y-2">
+                {mediaData.links.map((link, i) => (
+                  <a key={i} href={link.url} target="_blank" rel="noopener noreferrer"
+                    className="flex items-center gap-3 p-3 bg-white/5 rounded-xl hover:bg-white/10 transition-colors">
+                    <Link className="h-5 w-5 text-primary flex-shrink-0" />
+                    <p className="text-sm text-primary truncate flex-1">{link.url}</p>
+                  </a>
+                ))}
+              </div>
+            )}
           </motion.div>
         )}
 

@@ -104,7 +104,7 @@ export default function ChatList({ onViewStory }: { onViewStory?: (stories: any[
           name: g.name,
           avatar: g.avatar,
           lastMessage: g.lastMessage,
-          unreadCount: 0,
+          unreadCount: g.unreadCount || 0,
           isPinned: false,
           isMuted: false,
           memberCount: g.members?.length || 0,

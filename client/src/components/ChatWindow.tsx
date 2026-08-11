@@ -92,6 +92,8 @@ export default function ChatWindow() {
   const [selectedMessage, setSelectedMessage] = useState<number | null>(null);
   const [contextMenu, setContextMenu] = useState<{ msg: Message; x: number; y: number } | null>(null);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
+  const [editingMessage, setEditingMessage] = useState<Message | null>(null);
+  const [editValue, setEditValue] = useState("");
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [emojiCategory, setEmojiCategory] = useState(0);
   const [showAttachMenu, setShowAttachMenu] = useState(false);
@@ -100,6 +102,9 @@ export default function ChatWindow() {
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout>(null);
@@ -108,13 +113,24 @@ export default function ChatWindow() {
   const docInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    return () => {
+      pendingFiles.forEach((pf) => {
+        if (pf.preview) URL.revokeObjectURL(pf.preview);
+      });
+    };
+  }, []);
+
+  useEffect(() => {
     if (activeChat) {
-      fetchMessages();
+      setPage(1);
+      setHasMore(true);
+      fetchMessages(1);
       setSelectedMessage(null);
       setReplyTo(null);
       setShowEmojiPicker(false);
       setShowAttachMenu(false);
       setPendingFiles([]);
+      setEditingMessage(null);
     }
   }, [activeChat?.id]);
 
@@ -142,22 +158,42 @@ export default function ChatWindow() {
     const handleScroll = () => {
       const { scrollTop, scrollHeight, clientHeight } = container;
       setShowScrollDown(scrollHeight - scrollTop - clientHeight > 200);
+      if (scrollTop < 100 && hasMore && !loadingMore) {
+        loadMore();
+      }
     };
     container.addEventListener("scroll", handleScroll);
     return () => container.removeEventListener("scroll", handleScroll);
-  }, []);
+  }, [hasMore, loadingMore, page]);
 
-  const fetchMessages = async () => {
+  const fetchMessages = async (pageNum: number = 1) => {
     if (!activeChat) return;
-    setLoading(true);
+    if (pageNum === 1) setLoading(true);
+    else setLoadingMore(true);
     try {
-      const { data } = await api.get(`/messages/${activeChat.type}/${activeChat.id}`);
-      if (data.success) setMessages(data.data);
+      const { data } = await api.get(`/messages/${activeChat.type}/${activeChat.id}?page=${pageNum}&limit=50`);
+      if (data.success) {
+        const newMessages = data.data || [];
+        if (pageNum === 1) {
+          setMessages(newMessages);
+        } else {
+          setMessages((prev) => [...newMessages, ...prev]);
+        }
+        setHasMore(newMessages.length === 50);
+      }
     } catch (error) {
       console.error("Failed to fetch messages:", error);
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
+  };
+
+  const loadMore = () => {
+    if (loadingMore || !hasMore) return;
+    const nextPage = page + 1;
+    setPage(nextPage);
+    fetchMessages(nextPage);
   };
 
   const scrollToBottom = () => {
@@ -229,6 +265,22 @@ export default function ChatWindow() {
   };
 
   const handleSend = async () => {
+    if (editingMessage) {
+      if (!editValue.trim()) return;
+      try {
+        const { data } = await api.put(`/messages/${editingMessage.id}`, { content: editValue.trim() });
+        if (data.success) {
+          setMessages(messages.map((m) => m.id === editingMessage.id ? { ...m, content: editValue.trim(), isEdited: true } : m));
+        }
+      } catch (error) {
+        console.error("Edit message failed:", error);
+      } finally {
+        setEditingMessage(null);
+        setEditValue("");
+        inputRef.current?.focus();
+      }
+      return;
+    }
     if (pendingFiles.length > 0) return handleSendWithFiles();
     if (!inputValue.trim() || !activeChat || !user) return;
     const content = inputValue.trim();
@@ -406,6 +458,11 @@ export default function ChatWindow() {
           </div>
         ) : (
           <div className="space-y-1 max-w-3xl mx-auto">
+            {loadingMore && (
+              <div className="flex items-center justify-center py-4">
+                <div className="w-6 h-6 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+              </div>
+            )}
             {messages.map((msg, index) => {
               const isOwn = msg.senderId === user?.id;
               const prevMsg = index > 0 ? messages[index - 1] : null;
@@ -611,6 +668,22 @@ export default function ChatWindow() {
         )}
       </AnimatePresence>
 
+      {/* Edit Preview */}
+      <AnimatePresence>
+        {editingMessage && (
+          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="px-4 bg-[#101826] border-t border-[#1B2434]">
+            <div className="flex items-center gap-3 py-2.5 max-w-3xl mx-auto">
+              <div className="w-1 h-10 bg-yellow-500 rounded-full flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-yellow-400 font-medium">Editing message</p>
+                <p className="text-xs text-white/50 truncate mt-0.5">{editingMessage.content}</p>
+              </div>
+              <button onClick={() => { setEditingMessage(null); setEditValue(""); }} className="text-white/30 hover:text-white flex-shrink-0"><X className="h-4 w-4" /></button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Message Input */}
       <div className="px-4 py-3 border-t border-[#1B2434] bg-[#0B1220]/80 backdrop-blur-xl flex-shrink-0">
         <div className="flex items-end gap-2 max-w-3xl mx-auto">
@@ -655,7 +728,10 @@ export default function ChatWindow() {
           </div>
 
           <div className="relative flex-1">
-            <Input ref={inputRef} placeholder="Type a message..." value={inputValue} onChange={handleInputChange} onKeyDown={handleKeyDown}
+            <Input ref={inputRef} placeholder={editingMessage ? "Edit message..." : "Type a message..."}
+              value={editingMessage ? editValue : inputValue}
+              onChange={editingMessage ? (e) => setEditValue(e.target.value) : handleInputChange}
+              onKeyDown={handleKeyDown}
               className="h-11 bg-[#101826] border-[#1B2434] rounded-xl pr-10 text-[14px]" />
             <Button variant="ghost" size="icon" className="absolute right-1 top-1/2 -translate-y-1/2 text-white/40 hover:text-white h-9 w-9" onClick={() => setShowEmojiPicker(!showEmojiPicker)}>
               <Smile className="h-5 w-5" />
@@ -711,7 +787,7 @@ export default function ChatWindow() {
               ...(contextMenu.msg.content ? [{ icon: Copy, label: "Copy", action: () => handleCopy(contextMenu.msg.content!) }] : []),
               { icon: Forward, label: "Forward", action: () => setContextMenu(null) },
               { icon: Pin, label: contextMenu.msg.isPinned ? "Unpin" : "Pin", action: () => setContextMenu(null) },
-              ...(contextMenu.msg.senderId === user?.id ? [{ icon: Edit3, label: "Edit", action: () => setContextMenu(null) }] : []),
+              ...(contextMenu.msg.senderId === user?.id ? [{ icon: Edit3, label: "Edit", action: () => { setEditingMessage(contextMenu.msg); setEditValue(contextMenu.msg.content || ""); setContextMenu(null); inputRef.current?.focus(); } }] : []),
               { icon: Trash2, label: "Delete", danger: true, action: () => { emitSocket("message:delete", { messageId: contextMenu.msg.id }); setContextMenu(null); } },
             ].map((item) => (
               <button key={item.label} className={cn("w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-colors", item.danger ? "text-red-400 hover:bg-red-400/10" : "text-white/70 hover:bg-white/5")} onClick={item.action}>
