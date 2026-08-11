@@ -4,9 +4,19 @@ import { useEffect, useCallback, useRef } from 'react';
 import { getSocket, onSocket, offSocket, emitSocket } from '@/lib/socket';
 import { useAppStore } from '@/lib/store';
 
+const playNotificationSound = () => {
+  try {
+    const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdH+JkI2Hf3V1gIqOiomDe3d5hIuPjImEgHx6goqOi4mDf318gYmNiYiCf319gYiMiIeBf35+gIeLh4aAf35/gIaKhYR/f3+AgIWJhINA');
+    audio.volume = 0.3;
+    audio.play().catch(() => {});
+  } catch (e) {}
+};
+
 export const useSocket = () => {
-  const { user, addOnlineUser, removeOnlineUser, setTypingUser, addMessage, updateMessage, setOnlineUsers } = useAppStore();
+  const { user, addOnlineUser, removeOnlineUser, setTypingUser, addMessage, updateMessage, setOnlineUsers, activeChat } = useAppStore();
   const typingTimersRef = useRef<Record<string, NodeJS.Timeout>>({});
+  const activeChatRef = useRef(activeChat);
+  activeChatRef.current = activeChat;
 
   useEffect(() => {
     if (!user) return;
@@ -26,6 +36,13 @@ export const useSocket = () => {
     };
 
     const handleMessageNew = (message: any) => {
+      const isOwnMessage = message.senderId === user?.id;
+      const isViewingChat = activeChatRef.current && 
+        activeChatRef.current.id === String(message.senderId) && 
+        message.chatType === 'PRIVATE';
+      if (!isOwnMessage && !isViewingChat) {
+        playNotificationSound();
+      }
       addMessage(message);
     };
 

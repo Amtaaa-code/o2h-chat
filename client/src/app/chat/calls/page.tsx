@@ -106,6 +106,9 @@ export default function CallsPage() {
       {/* Header */}
       <div className="px-4 pt-4 pb-3 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-3">
+          <Button variant="ghost" size="icon" className="md:hidden text-white/60 hover:text-white h-9 w-9" onClick={() => router.back()}>
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
           <h1 className="text-xl font-bold text-white">Calls</h1>
         </div>
         <div className="flex items-center gap-2">

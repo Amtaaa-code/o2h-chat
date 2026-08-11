@@ -21,6 +21,7 @@ import {
   EyeOff,
   MessageCircle,
   Phone,
+  ArrowLeft,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -531,7 +532,10 @@ export default function SettingsPage() {
   return (
     <div className="h-full flex flex-col bg-[#060B16]">
       {/* Header */}
-      <div className="px-4 pt-4 pb-3 flex-shrink-0">
+      <div className="px-4 pt-4 pb-3 flex items-center gap-3 flex-shrink-0">
+        <Button variant="ghost" size="icon" className="md:hidden text-white/60 hover:text-white h-9 w-9" onClick={() => router.back()}>
+          <ArrowLeft className="h-5 w-5" />
+        </Button>
         <h1 className="text-xl font-bold text-white">Settings</h1>
       </div>
 

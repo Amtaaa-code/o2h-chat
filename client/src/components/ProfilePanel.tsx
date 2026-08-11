@@ -35,12 +35,17 @@ export default function ProfilePanel() {
   const [activeSection, setActiveSection] = useState<string | null>(null);
   const [mediaData, setMediaData] = useState<{ images: any[]; documents: any[]; links: any[] }>({ images: [], documents: [], links: [] });
   const [loadingMedia, setLoadingMedia] = useState(false);
+  const [chatUserData, setChatUserData] = useState<any>(null);
 
   useEffect(() => {
     if (!activeChat) return;
-    const fetchMedia = async () => {
+    const fetchData = async () => {
       setLoadingMedia(true);
       try {
+        if (activeChat.type === 'PRIVATE') {
+          const { data: userData } = await api.get(`/users/${activeChat.id}`);
+          if (userData.success) setChatUserData(userData.data);
+        }
         const { data } = await api.get(`/messages/${activeChat.type}/${activeChat.id}?limit=200`);
         if (data.success) {
           const messages = data.data || [];
@@ -70,7 +75,7 @@ export default function ProfilePanel() {
         setLoadingMedia(false);
       }
     };
-    fetchMedia();
+    fetchData();
   }, [activeChat?.id]);
 
   if (!activeChat) return null;
@@ -136,8 +141,13 @@ export default function ProfilePanel() {
         <div className="px-4 py-4">
           <p className="text-xs text-white/40 mb-1">About</p>
           <p className="text-sm text-white/70">
-            {activeChat.type === "PRIVATE" ? "Hey there! I am using O2H" : `${activeChat.memberCount || 0} members in this group`}
+            {activeChat.type === "PRIVATE"
+              ? chatUserData?.profile?.bio || "Hey there! I am using O2H"
+              : `${activeChat.memberCount || 0} members in this group`}
           </p>
+          {activeChat.type === "PRIVATE" && chatUserData?.profile?.phoneNumber && (
+            <p className="text-xs text-white/40 mt-2">{chatUserData.profile.phoneNumber}</p>
+          )}
         </div>
 
         <Separator className="bg-[#1B2434]" />

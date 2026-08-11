@@ -108,6 +108,9 @@ export default function ChatWindow() {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [searchResults, setSearchResults] = useState<number[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout>(null);
@@ -378,6 +381,19 @@ export default function ChatWindow() {
 
   const isOtherTyping = activeChat && typingUsers[activeChat.id]?.length > 0;
 
+  const handleSearch = (term: string) => {
+    setSearchTerm(term);
+    if (!term.trim()) {
+      setSearchResults([]);
+      return;
+    }
+    const lower = term.toLowerCase();
+    const results = messages
+      .filter((m) => m.content?.toLowerCase().includes(lower))
+      .map((m) => m.id);
+    setSearchResults(results);
+  };
+
   if (callState.isActive) {
     return <CallScreen callState={callState} onEndCall={endCall} onToggleMute={toggleMute} onToggleVideo={toggleVideo} onToggleSpeaker={toggleSpeaker} />;
   }
@@ -451,7 +467,7 @@ export default function ChatWindow() {
           }}>
             <Video className="h-5 w-5" />
           </Button>
-          <Button variant="ghost" size="icon" className="text-white/60 hover:text-white h-10 w-10">
+          <Button variant="ghost" size="icon" className="text-white/60 hover:text-white h-10 w-10" onClick={() => { setShowSearch(!showSearch); if (showSearch) { setSearchTerm(""); setSearchResults([]); } }}>
             <Search className="h-5 w-5" />
           </Button>
           <Button variant="ghost" size="icon" className={cn("h-10 w-10", profilePanelOpen ? "text-primary" : "text-white/60 hover:text-white")} onClick={() => setProfilePanelOpen(!profilePanelOpen)}>
@@ -459,6 +475,30 @@ export default function ChatWindow() {
           </Button>
         </div>
       </div>
+
+      {/* Search Bar */}
+      <AnimatePresence>
+        {showSearch && (
+          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+            className="px-4 py-2 bg-[#101826] border-b border-[#1B2434] flex-shrink-0">
+            <div className="relative max-w-3xl mx-auto">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
+              <Input
+                placeholder="Search in conversation..."
+                value={searchTerm}
+                onChange={(e) => handleSearch(e.target.value)}
+                className="pl-10 pr-10 h-10 bg-[#0B1220] border-[#1B2434] rounded-xl text-sm"
+                autoFocus
+              />
+              {searchTerm && (
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-white/40">
+                  {searchResults.length} found
+                </span>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Messages Area */}
       <div ref={scrollContainerRef} className="flex-1 overflow-y-auto scrollbar-thin px-4 py-3">
@@ -495,6 +535,7 @@ export default function ChatWindow() {
               const isConsecutive = prevMsg && prevMsg.senderId === msg.senderId && !prevMsg.isDeleted && formatDate(msg.createdAt) === formatDate(prevMsg.createdAt);
               const isLastInGroup = !nextMsg || nextMsg.senderId !== msg.senderId || nextMsg.isDeleted || formatDate(nextMsg.createdAt) !== formatDate(msg.createdAt);
               const isSingleEmoji = msg.content && /^[\p{Emoji}\u200d\ufe0f]{1,2}$/u.test(msg.content) && !msg.attachments?.length;
+              const isSearchResult = searchResults.includes(msg.id);
 
               return (
                 <div key={msg.id}>
@@ -539,6 +580,7 @@ export default function ChatWindow() {
                           isSingleEmoji ? "bg-transparent text-3xl px-1" : (isOwn ? "message-own" : "message-other"),
                           isConsecutive && isOwn && "rounded-tr-sm",
                           isConsecutive && !isOwn && "rounded-tl-sm",
+                          isSearchResult && "ring-2 ring-primary/50",
                         )}
                         onClick={(e) => { e.stopPropagation(); setSelectedMessage(selectedMessage === msg.id ? null : msg.id); }}
                         onContextMenu={(e) => handleContextMenu(e, msg)}

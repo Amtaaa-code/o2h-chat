@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, UserPlus, MoreVertical, X, MessageCircle, Phone, Video } from "lucide-react";
+import { Search, UserPlus, MoreVertical, X, MessageCircle, Phone, Video, ArrowLeft } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAppStore } from "@/lib/store";
 import api from "@/lib/axios";
 import { cn } from "@/lib/utils";
+import { useRouter } from "next/navigation";
 
 interface Contact {
   id: number;
@@ -24,6 +25,7 @@ interface Contact {
 }
 
 export default function ContactsPage() {
+  const router = useRouter();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -86,7 +88,12 @@ export default function ContactsPage() {
     <div className="h-full flex flex-col bg-[#060B16]">
       {/* Header */}
       <div className="px-4 pt-4 pb-3 flex items-center justify-between flex-shrink-0">
-        <h1 className="text-xl font-bold text-white">Contacts</h1>
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="icon" className="md:hidden text-white/60 hover:text-white h-9 w-9" onClick={() => router.back()}>
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <h1 className="text-xl font-bold text-white">Contacts</h1>
+        </div>
         <Button
           onClick={() => setShowAddDialog(true)}
           className="gradient-primary h-9 rounded-xl text-sm"
