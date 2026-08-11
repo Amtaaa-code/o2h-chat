@@ -56,6 +56,11 @@ export default function ChatList({ onViewStory }: { onViewStory?: (stories: any[
   }, []);
 
   useEffect(() => {
+    const totalUnread = chats.reduce((sum, chat) => sum + (chat.unreadCount || 0), 0);
+    document.title = totalUnread > 0 ? `(${totalUnread}) O2H Chat` : "O2H Chat";
+  }, [chats]);
+
+  useEffect(() => {
     let filtered = chats;
     if (searchQuery) {
       filtered = chats.filter((c) =>

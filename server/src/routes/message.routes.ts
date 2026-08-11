@@ -306,4 +306,22 @@ router.get('/starred', authMiddleware, async (req: any, res) => {
   }
 });
 
+router.post('/:id/pin', authMiddleware, async (req: any, res) => {
+  try {
+    const { id } = req.params;
+    const message = await prisma.message.findUnique({ where: { id: parseInt(id) } });
+    if (!message) return res.status(404).json({ success: false, message: 'Message not found' });
+
+    const updated = await prisma.message.update({
+      where: { id: parseInt(id) },
+      data: { isPinned: !message.isPinned },
+    });
+
+    res.json({ success: true, data: { isPinned: updated.isPinned } });
+  } catch (error) {
+    console.error('Pin message error:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+
 export default router;

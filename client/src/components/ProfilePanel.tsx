@@ -29,6 +29,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Input } from "@/components/ui/input";
 import { useAppStore } from "@/lib/store";
 import { cn, getUploadUrl } from "@/lib/utils";
 import api from "@/lib/axios";
@@ -42,6 +43,9 @@ export default function ProfilePanel() {
   const [inviteLink, setInviteLink] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [groupMembers, setGroupMembers] = useState<any[]>([]);
+  const [groupDescription, setGroupDescription] = useState<string>("");
+  const [editingDesc, setEditingDesc] = useState(false);
+  const [descValue, setDescValue] = useState("");
 
   useEffect(() => {
     if (!activeChat) return;
@@ -54,7 +58,10 @@ export default function ProfilePanel() {
         }
         if (activeChat.type === 'GROUP') {
           const { data: membersData } = await api.get(`/groups/${activeChat.id}`);
-          if (membersData.success) setGroupMembers(membersData.data?.members || []);
+          if (membersData.success) {
+            setGroupMembers(membersData.data?.members || []);
+            setGroupDescription(membersData.data?.description || "");
+          }
         }
         const { data } = await api.get(`/messages/${activeChat.type}/${activeChat.id}?limit=200`);
         if (data.success) {
@@ -132,6 +139,17 @@ export default function ProfilePanel() {
     }
   };
 
+  const handleSaveDescription = async () => {
+    if (!activeChat || activeChat.type !== 'GROUP') return;
+    try {
+      await api.put(`/groups/${activeChat.id}`, { description: descValue });
+      setGroupDescription(descValue);
+      setEditingDesc(false);
+    } catch (error) {
+      console.error("Failed to update description:", error);
+    }
+  };
+
   if (!activeChat) return null;
 
   const sections = [
@@ -194,11 +212,26 @@ export default function ProfilePanel() {
         {/* About */}
         <div className="px-4 py-4">
           <p className="text-xs text-white/40 mb-1">About</p>
-          <p className="text-sm text-white/70">
-            {activeChat.type === "PRIVATE"
-              ? chatUserData?.profile?.bio || "Hey there! I am using O2H"
-              : `${activeChat.memberCount || 0} members in this group`}
-          </p>
+          {activeChat.type === "GROUP" && editingDesc ? (
+            <div className="flex items-center gap-2">
+              <Input value={descValue} onChange={(e) => setDescValue(e.target.value)}
+                placeholder="Group description..."
+                className="flex-1 h-8 bg-[#0B1220] border-[#1B2434] text-sm"
+                onKeyDown={(e) => { if (e.key === 'Enter') handleSaveDescription(); if (e.key === 'Escape') setEditingDesc(false); }} />
+              <Button size="sm" onClick={handleSaveDescription} className="h-8 px-3">Save</Button>
+            </div>
+          ) : (
+            <p className="text-sm text-white/70 cursor-pointer hover:text-white/90" onClick={() => {
+              if (activeChat.type === "GROUP") {
+                setDescValue(groupDescription);
+                setEditingDesc(true);
+              }
+            }}>
+              {activeChat.type === "PRIVATE"
+                ? chatUserData?.profile?.bio || "Hey there! I am using O2H"
+                : groupDescription || `${activeChat.memberCount || 0} members in this group`}
+            </p>
+          )}
           {activeChat.type === "PRIVATE" && chatUserData?.profile?.phoneNumber && (
             <p className="text-xs text-white/40 mt-2">{chatUserData.profile.phoneNumber}</p>
           )}

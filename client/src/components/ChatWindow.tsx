@@ -107,6 +107,7 @@ export default function ChatWindow() {
   const [showAttachMenu, setShowAttachMenu] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showScrollDown, setShowScrollDown] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<number | null>(null);
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -364,6 +365,18 @@ export default function ChatWindow() {
     setContextMenu(null);
   };
 
+  const handlePin = async (messageId: number) => {
+    try {
+      const { data } = await api.post(`/messages/${messageId}/pin`);
+      setMessages((msgs) =>
+        msgs.map((m) => (m.id === messageId ? { ...m, isPinned: data.data.isPinned } : m))
+      );
+    } catch (error) {
+      console.error("Pin failed:", error);
+    }
+    setContextMenu(null);
+  };
+
   const handleForward = async (targetChat: { id: string; type: string; name: string }) => {
     if (!forwardMessage) return;
     try {
@@ -501,8 +514,10 @@ export default function ChatWindow() {
             <p className="text-xs text-white/40">
               {isOtherTyping ? (
                 <span className="text-primary flex items-center gap-1">
-                  typing
-                  <span className="flex gap-0.5">
+                  {activeChat.type === "GROUP" && (typingUsers[activeChat.id]?.length || 0) > 1
+                    ? `${typingUsers[activeChat.id]?.length} people typing`
+                    : "typing"}
+                  <span className="flex gap-0.5 ml-1">
                     <span className="w-1 h-1 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
                     <span className="w-1 h-1 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
                     <span className="w-1 h-1 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
@@ -712,6 +727,7 @@ export default function ChatWindow() {
                           )}
                           {msg.isEdited && <span className="text-[10px] text-white/25 italic">edited</span>}
                           {msg.isStarred && <Star className="h-3 w-3 text-yellow-400 fill-yellow-400" />}
+                          {msg.isPinned && <Pin className="h-3 w-3 text-blue-400" />}
                         </div>
                       )}
                     </div>
@@ -922,15 +938,35 @@ export default function ChatWindow() {
               { icon: Reply, label: "Reply", action: () => { setReplyTo(contextMenu.msg); setContextMenu(null); inputRef.current?.focus(); } },
               ...(contextMenu.msg.content ? [{ icon: Copy, label: "Copy", action: () => handleCopy(contextMenu.msg.content!) }] : []),
               { icon: Forward, label: "Forward", action: () => { setForwardMessage(contextMenu.msg); setShowForwardDialog(true); setContextMenu(null); } },
-              { icon: Pin, label: contextMenu.msg.isPinned ? "Unpin" : "Pin", action: () => setContextMenu(null) },
+              { icon: Pin, label: contextMenu.msg.isPinned ? "Unpin" : "Pin", action: () => handlePin(contextMenu.msg.id) },
               { icon: Star, label: contextMenu.msg.isStarred ? "Unstar" : "Star", action: () => handleStar(contextMenu.msg.id) },
               ...(contextMenu.msg.senderId === user?.id ? [{ icon: Edit3, label: "Edit", action: () => { setEditingMessage(contextMenu.msg); setEditValue(contextMenu.msg.content || ""); setContextMenu(null); inputRef.current?.focus(); } }] : []),
-              { icon: Trash2, label: "Delete", danger: true, action: () => { emitSocket("message:delete", { messageId: contextMenu.msg.id }); setContextMenu(null); } },
+              { icon: Trash2, label: "Delete", danger: true, action: () => { setPendingDelete(contextMenu.msg.id); setContextMenu(null); } },
             ].map((item) => (
               <button key={item.label} className={cn("w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-colors", item.danger ? "text-red-400 hover:bg-red-400/10" : "text-white/70 hover:bg-white/5")} onClick={item.action}>
                 <item.icon className="h-4 w-4" /><span>{item.label}</span>
               </button>
             ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Delete Confirmation Dialog */}
+      <AnimatePresence>
+        {pendingDelete && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[60] bg-black/60 flex items-center justify-center backdrop-blur-sm"
+            onClick={() => setPendingDelete(null)}>
+            <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }}
+              className="bg-[#101826] border border-[#1B2434] rounded-2xl p-6 max-w-sm w-full mx-4 shadow-2xl"
+              onClick={(e) => e.stopPropagation()}>
+              <h3 className="text-lg font-semibold text-white mb-2">Delete Message?</h3>
+              <p className="text-sm text-white/50 mb-6">This message will be deleted for everyone in this chat.</p>
+              <div className="flex gap-3 justify-end">
+                <Button variant="ghost" onClick={() => setPendingDelete(null)} className="text-white/60 hover:text-white">Cancel</Button>
+                <Button variant="destructive" onClick={() => { emitSocket("message:delete", { messageId: pendingDelete }); setPendingDelete(null); }}>Delete</Button>
+              </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>

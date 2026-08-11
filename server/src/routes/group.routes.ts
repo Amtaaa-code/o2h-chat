@@ -88,6 +88,30 @@ router.get('/:id', authMiddleware, async (req: any, res) => {
   }
 });
 
+router.put('/:id', authMiddleware, async (req: any, res) => {
+  try {
+    const groupId = parseInt(req.params.id);
+    const membership = await prisma.groupMember.findFirst({
+      where: { groupId, userId: req.userId, role: { in: ['OWNER', 'ADMIN'] } },
+    });
+    if (!membership) return res.status(403).json({ success: false, message: 'Only admin or owner can edit group' });
+
+    const { name, description } = req.body;
+    const updateData: any = {};
+    if (name) updateData.name = name;
+    if (description !== undefined) updateData.description = description;
+
+    const group = await prisma.group.update({
+      where: { id: groupId },
+      data: updateData,
+    });
+
+    res.json({ success: true, data: group });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+
 router.post('/:id/members', authMiddleware, validate(addMembersSchema), async (req: any, res) => {
   try {
     const { userIds } = req.body;
