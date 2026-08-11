@@ -118,6 +118,10 @@ export default function ChatWindow() {
   const [searchTerm, setSearchTerm] = useState("");
   const [searchResults, setSearchResults] = useState<number[]>([]);
   const [isDragging, setIsDragging] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout>(null);
@@ -433,6 +437,53 @@ export default function ChatWindow() {
     }
   };
 
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
+      const chunks: Blob[] = [];
+      mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+      mediaRecorder.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        const blob = new Blob(chunks, { type: "audio/webm" });
+        const file = new File([blob], `voice-${Date.now()}.webm`, { type: "audio/webm" });
+        setPendingFiles((prev) => [...prev, { file }]);
+        setInputValue(" ");
+        setTimeout(() => handleSendWithFiles(), 100);
+      };
+      mediaRecorderRef.current = mediaRecorder;
+      mediaRecorder.start();
+      setIsRecording(true);
+      setRecordingTime(0);
+      recordingIntervalRef.current = setInterval(() => setRecordingTime((t) => t + 1), 1000);
+    } catch (error) {
+      console.error("Microphone access denied:", error);
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      mediaRecorderRef.current.stop();
+    }
+    setIsRecording(false);
+    if (recordingIntervalRef.current) clearInterval(recordingIntervalRef.current);
+  };
+
+  const cancelRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      mediaRecorderRef.current.stream.getTracks().forEach((t) => t.stop());
+      mediaRecorderRef.current.stop();
+    }
+    setIsRecording(false);
+    if (recordingIntervalRef.current) clearInterval(recordingIntervalRef.current);
+  };
+
+  const formatRecordingTime = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${s.toString().padStart(2, "0")}`;
+  };
+
   useEffect(() => {
     const handleClick = () => { setContextMenu(null); setSelectedMessage(null); };
     document.addEventListener("click", handleClick);
@@ -709,9 +760,14 @@ export default function ChatWindow() {
 
                       {msg.reactions && msg.reactions.length > 0 && (
                         <div className={cn("flex gap-1 mt-0.5", isOwn ? "justify-end" : "justify-start")}>
-                          {Object.entries(msg.reactions.reduce((acc, r) => { acc[r.emoji] = (acc[r.emoji] || 0) + 1; return acc; }, {} as Record<string, number>)).map(([emoji, count]) => (
-                            <span key={emoji} className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-[#101826] rounded-full text-xs border border-[#1B2434] hover:bg-[#1B2434] cursor-pointer transition-colors">
-                              {emoji}{count > 1 && <span className="text-white/50">{count}</span>}
+                          {Object.entries(msg.reactions.reduce((acc, r) => {
+                            if (!acc[r.emoji]) acc[r.emoji] = { count: 0, users: [] as string[] };
+                            acc[r.emoji].count++;
+                            acc[r.emoji].users.push(r.user.username);
+                            return acc;
+                          }, {} as Record<string, { count: number; users: string[] }>)).map(([emoji, data]) => (
+                            <span key={emoji} title={data.users.join(", ")} className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-[#101826] rounded-full text-xs border border-[#1B2434] hover:bg-[#1B2434] cursor-pointer transition-colors">
+                              {emoji}{data.count > 1 && <span className="text-white/50">{data.count}</span>}
                             </span>
                           ))}
                         </div>
@@ -901,12 +957,26 @@ export default function ChatWindow() {
             </AnimatePresence>
           </div>
 
-          {inputValue.trim() || pendingFiles.length > 0 ? (
+          {isRecording ? (
+            <div className="flex items-center gap-3 flex-1">
+              <Button variant="ghost" size="icon" onClick={cancelRecording} className="text-red-400 hover:text-red-300 h-9 w-9">
+                <X className="h-5 w-5" />
+              </Button>
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse" />
+                <span className="text-sm text-white/70 font-mono">{formatRecordingTime(recordingTime)}</span>
+              </div>
+              <div className="flex-1" />
+              <Button onClick={stopRecording} className="h-11 w-11 rounded-xl bg-red-500 hover:bg-red-600 shadow-lg flex-shrink-0" size="icon">
+                <div className="w-4 h-4 bg-white rounded-sm" />
+              </Button>
+            </div>
+          ) : inputValue.trim() || pendingFiles.length > 0 ? (
             <Button onClick={handleSend} disabled={uploading} className="h-11 w-11 rounded-xl gradient-primary shadow-lg shadow-primary/25 flex-shrink-0" size="icon">
               {uploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
             </Button>
           ) : (
-            <Button variant="ghost" size="icon" className="text-white/60 hover:text-white h-11 w-11 flex-shrink-0">
+            <Button variant="ghost" size="icon" onClick={startRecording} className="text-white/60 hover:text-white h-11 w-11 flex-shrink-0">
               <Mic className="h-5 w-5" />
             </Button>
           )}

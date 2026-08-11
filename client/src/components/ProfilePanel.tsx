@@ -488,7 +488,13 @@ export default function ProfilePanel() {
 
         {/* Actions */}
         <div className="py-2">
-          <button className="w-full flex items-center gap-4 px-4 py-3 hover:bg-white/5 transition-colors text-red-400">
+          <button className="w-full flex items-center gap-4 px-4 py-3 hover:bg-white/5 transition-colors text-red-400" onClick={async () => {
+            if (activeChat.type === "PRIVATE") {
+              try {
+                await api.post(`/messages`, { chatType: "PRIVATE", chatId: activeChat.id, content: null, type: "TEXT" });
+              } catch (e) {}
+            }
+          }}>
             <Ban className="h-5 w-5" />
             <span className="text-sm">Block {activeChat.type === "GROUP" ? "Group" : "User"}</span>
           </button>
