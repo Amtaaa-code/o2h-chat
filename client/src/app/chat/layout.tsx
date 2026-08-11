@@ -11,6 +11,7 @@ import ChatWindow from "@/components/ChatWindow";
 import ProfilePanel from "@/components/ProfilePanel";
 import MobileNav from "@/components/MobileNav";
 import { StoryViewer } from "@/components/StoryComponents";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import api from "@/lib/axios";
 
 export default function ChatLayout({ children }: { children: React.ReactNode }) {
@@ -76,42 +77,44 @@ export default function ChatLayout({ children }: { children: React.ReactNode }) 
 
   return (
     <div className="h-screen flex bg-[#060B16] overflow-hidden">
-      {/* Desktop Layout */}
-      <div className="hidden md:flex w-full h-full">
-        <Sidebar />
+      <ErrorBoundary>
+        {/* Desktop Layout */}
+        <div className="hidden md:flex w-full h-full">
+          <Sidebar />
 
-        <div
-          className={`${
-            sidebarCollapsed ? "w-16" : "w-[340px]"
-          } h-full border-r border-[#1B2434] flex-shrink-0 transition-all duration-300`}
-        >
-          <ChatList onViewStory={handleViewStory} />
-        </div>
-
-        <div className="flex-1 h-full min-w-0">
-          {isSubRoute ? children : <ChatWindow />}
-        </div>
-
-        {profilePanelOpen && (
-          <div className="w-[340px] h-full border-l border-[#1B2434] flex-shrink-0 animate-fade-in">
-            <ProfilePanel />
-          </div>
-        )}
-      </div>
-
-      {/* Mobile Layout */}
-      <div className="md:hidden w-full h-full flex flex-col">
-        <div className="flex-1 overflow-hidden">
-          {isSubRoute ? (
-            children
-          ) : activeChat ? (
-            <ChatWindow />
-          ) : (
+          <div
+            className={`${
+              sidebarCollapsed ? "w-16" : "w-[340px]"
+            } h-full border-r border-[#1B2434] flex-shrink-0 transition-all duration-300`}
+          >
             <ChatList onViewStory={handleViewStory} />
+          </div>
+
+          <div className="flex-1 h-full min-w-0">
+            {isSubRoute ? children : <ChatWindow />}
+          </div>
+
+          {profilePanelOpen && (
+            <div className="w-[340px] h-full border-l border-[#1B2434] flex-shrink-0 animate-fade-in">
+              <ProfilePanel />
+            </div>
           )}
         </div>
-        {!isSubRoute && !activeChat && <MobileNav />}
-      </div>
+
+        {/* Mobile Layout */}
+        <div className="md:hidden w-full h-full flex flex-col">
+          <div className="flex-1 overflow-hidden">
+            {isSubRoute ? (
+              children
+            ) : activeChat ? (
+              <ChatWindow />
+            ) : (
+              <ChatList onViewStory={handleViewStory} />
+            )}
+          </div>
+          {!isSubRoute && !activeChat && <MobileNav />}
+        </div>
+      </ErrorBoundary>
 
       {/* Story Viewer Overlay */}
       <AnimatePresence>

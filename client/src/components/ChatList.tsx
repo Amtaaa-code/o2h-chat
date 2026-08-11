@@ -170,6 +170,49 @@ export default function ChatList({ onViewStory }: { onViewStory?: (stories: any[
     setContextMenu({ chatId, x: e.clientX, y: e.clientY });
   };
 
+  const handlePin = async (chatId: string) => {
+    setContextMenu(null);
+    const chat = chats.find((c) => c.id === chatId);
+    if (!chat) return;
+    try {
+      if (chat.type === "PRIVATE") {
+        await api.put(`/contacts/${chatId}/pin`);
+      }
+      setChats((prev) =>
+        prev.map((c) => (c.id === chatId ? { ...c, isPinned: !c.isPinned } : c))
+      );
+    } catch (error) {
+      console.error("Failed to pin chat:", error);
+    }
+  };
+
+  const handleMute = async (chatId: string) => {
+    setContextMenu(null);
+    const chat = chats.find((c) => c.id === chatId);
+    if (!chat) return;
+    try {
+      if (chat.type === "PRIVATE") {
+        await api.put(`/contacts/${chatId}/mute`);
+      }
+      setChats((prev) =>
+        prev.map((c) => (c.id === chatId ? { ...c, isMuted: !c.isMuted } : c))
+      );
+    } catch (error) {
+      console.error("Failed to mute chat:", error);
+    }
+  };
+
+  const handleDeleteChat = async (chatId: string) => {
+    setContextMenu(null);
+    if (!confirm("Are you sure you want to delete this chat?")) return;
+    try {
+      if (activeChat?.id === chatId) setActiveChat(null);
+      setChats((prev) => prev.filter((c) => c.id !== chatId));
+    } catch (error) {
+      console.error("Failed to delete chat:", error);
+    }
+  };
+
   const tabs = [
     { id: "all" as const, label: "All" },
     { id: "unread" as const, label: "Unread" },
@@ -366,10 +409,10 @@ export default function ChatList({ onViewStory }: { onViewStory?: (stories: any[
             style={{ left: contextMenu.x, top: contextMenu.y }}
           >
             {[
-              { icon: Pin, label: "Pin chat", action: () => {} },
-              { icon: Bell, label: "Mute", action: () => {} },
-              { icon: Archive, label: "Archive", action: () => {} },
-              { icon: Trash2, label: "Delete chat", danger: true, action: () => {} },
+              { icon: Pin, label: contextMenu && chats.find(c => c.id === contextMenu.chatId)?.isPinned ? "Unpin chat" : "Pin chat", action: () => handlePin(contextMenu.chatId) },
+              { icon: Bell, label: contextMenu && chats.find(c => c.id === contextMenu.chatId)?.isMuted ? "Unmute" : "Mute", action: () => handleMute(contextMenu.chatId) },
+              { icon: Archive, label: "Archive", action: () => setContextMenu(null) },
+              { icon: Trash2, label: "Delete chat", danger: true, action: () => handleDeleteChat(contextMenu.chatId) },
             ].map((item) => (
               <button
                 key={item.label}

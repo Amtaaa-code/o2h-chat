@@ -42,8 +42,6 @@ interface IncomingCallDialogProps {
   callerName: string;
   callerAvatar: string | null;
   callType: "VOICE" | "VIDEO";
-  callId: number;
-  callerId: number;
   onAccept: () => void;
   onReject: () => void;
 }

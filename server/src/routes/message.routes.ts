@@ -1,19 +1,38 @@
 import { Router } from 'express';
+import { z } from 'zod';
 import prisma from '../lib/prisma';
 import { authMiddleware } from '../middleware/auth';
+import { validate } from '../middleware/validate';
 
 const router = Router();
+
+const createMessageSchema = z.object({
+  chatType: z.enum(['PRIVATE', 'GROUP']),
+  chatId: z.string().min(1),
+  content: z.string().max(5000).nullable().optional(),
+  type: z.enum(['TEXT', 'IMAGE', 'DOCUMENT', 'AUDIO', 'VIDEO']).optional(),
+  replyToId: z.number().int().positive().optional(),
+  attachments: z.array(z.object({
+    filename: z.string(),
+    originalName: z.string(),
+    mimeType: z.string(),
+    size: z.number(),
+    url: z.string(),
+  })).optional(),
+});
 
 router.get('/conversations', authMiddleware, async (req: any, res) => {
   try {
     const userId = req.userId;
 
+    const userIdStr = String(userId);
     const privateMessages = await prisma.message.findMany({
       where: {
         chatType: 'PRIVATE',
         isDeleted: false,
         OR: [
-          { chatId: { contains: String(userId) } },
+          { chatId: { startsWith: userIdStr + '_' } },
+          { chatId: { endsWith: '_' + userIdStr } },
         ],
       },
       select: { chatId: true },
@@ -110,7 +129,7 @@ router.get('/:chatType/:chatId', authMiddleware, async (req: any, res) => {
   }
 });
 
-router.post('/', authMiddleware, async (req: any, res) => {
+router.post('/', authMiddleware, validate(createMessageSchema), async (req: any, res) => {
   try {
     const { chatType, chatId, content, type, replyToId, attachments } = req.body;
     const message = await prisma.message.create({
@@ -147,7 +166,11 @@ router.post('/', authMiddleware, async (req: any, res) => {
   }
 });
 
-router.put('/:id', authMiddleware, async (req: any, res) => {
+const editMessageSchema = z.object({
+  content: z.string().min(1).max(5000),
+});
+
+router.put('/:id', authMiddleware, validate(editMessageSchema), async (req: any, res) => {
   try {
     const { content } = req.body;
     const message = await prisma.message.update({

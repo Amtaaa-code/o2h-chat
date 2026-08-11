@@ -311,6 +311,11 @@ model UserSettings {
   language       String   @default("en")
   notifications  Boolean  @default(true)
   soundEnabled   Boolean  @default(true)
+  showPreview    Boolean  @default(false)
+  lastSeen       Boolean  @default(true)
+  profilePhoto   Boolean  @default(true)
+  readReceipts   Boolean  @default(true)
+  groupInvite    Boolean  @default(false)
   wallpaper      String?
   fontSize       Int      @default(14)
   createdAt      DateTime @default(now())

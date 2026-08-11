@@ -308,7 +308,7 @@ export default function ChatWindow() {
   }
 
   const incomingCallDialog = incomingCall ? (
-    <IncomingCallDialog callerName={incomingCall.callerName} callerAvatar={incomingCall.callerAvatar} callType={incomingCall.callType} callId={incomingCall.callId} callerId={incomingCall.callerId} onAccept={acceptCall} onReject={rejectCall} />
+    <IncomingCallDialog callerName={incomingCall.callerName} callerAvatar={incomingCall.callerAvatar} callType={incomingCall.callType} onAccept={acceptCall} onReject={rejectCall} />
   ) : null;
 
   if (!activeChat) {

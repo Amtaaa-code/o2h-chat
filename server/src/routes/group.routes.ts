@@ -1,8 +1,20 @@
 import { Router } from 'express';
+import { z } from 'zod';
 import prisma from '../lib/prisma';
 import { authMiddleware } from '../middleware/auth';
+import { validate } from '../middleware/validate';
 
 const router = Router();
+
+const createGroupSchema = z.object({
+  name: z.string().min(1).max(100),
+  description: z.string().max(500).optional(),
+  memberIds: z.array(z.number().int().positive()).optional(),
+});
+
+const addMembersSchema = z.object({
+  userIds: z.array(z.number().int().positive()).min(1),
+});
 
 router.get('/', authMiddleware, async (req: any, res) => {
   try {
@@ -19,7 +31,7 @@ router.get('/', authMiddleware, async (req: any, res) => {
   }
 });
 
-router.post('/', authMiddleware, async (req: any, res) => {
+router.post('/', authMiddleware, validate(createGroupSchema), async (req: any, res) => {
   try {
     const { name, description, memberIds } = req.body;
     const group = await prisma.group.create({
@@ -61,7 +73,7 @@ router.get('/:id', authMiddleware, async (req: any, res) => {
   }
 });
 
-router.post('/:id/members', authMiddleware, async (req: any, res) => {
+router.post('/:id/members', authMiddleware, validate(addMembersSchema), async (req: any, res) => {
   try {
     const { userIds } = req.body;
     const groupId = parseInt(req.params.id);

@@ -51,30 +51,31 @@ export const setupSocket = (io: Server) => {
         const message = data;
         const { chatType, chatId } = message;
         if (chatType === 'PRIVATE') {
-          const targetUserId = parseInt(chatId);
-          if (targetUserId !== userId) {
+          const parts = String(chatId).split('_').map(Number);
+          const targetUserId = parts.find((id: number) => id !== userId);
+          if (targetUserId) {
             io.to(`user:${targetUserId}`).emit('message:new', message);
-          }
-          try {
-            const sender = await prisma.user.findUnique({
-              where: { id: userId },
-              include: { profile: true },
-            });
-            await prisma.notification.create({
-              data: {
-                userId: targetUserId,
-                title: sender?.profile?.fullName || sender?.username || 'New Message',
+            try {
+              const sender = await prisma.user.findUnique({
+                where: { id: userId },
+                include: { profile: true },
+              });
+              await prisma.notification.create({
+                data: {
+                  userId: targetUserId,
+                  title: sender?.profile?.fullName || sender?.username || 'New Message',
+                  body: message.content || 'Attachment',
+                  type: 'MESSAGE',
+                  data: JSON.stringify({ chatType, chatId: String(userId), messageId: message.id }),
+                },
+              });
+              io.to(`user:${targetUserId}`).emit('notification:new', {
+                title: sender?.profile?.fullName || sender?.username,
                 body: message.content || 'Attachment',
                 type: 'MESSAGE',
-                data: JSON.stringify({ chatType, chatId: String(userId), messageId: message.id }),
-              },
-            });
-            io.to(`user:${targetUserId}`).emit('notification:new', {
-              title: sender?.profile?.fullName || sender?.username,
-              body: message.content || 'Attachment',
-              type: 'MESSAGE',
-            });
-          } catch (e) { /* ignore */ }
+              });
+            } catch (e) { /* ignore */ }
+          }
         } else if (chatType === 'GROUP') {
           io.to(`group:${chatId}`).emit('message:new', message);
         }
@@ -86,7 +87,11 @@ export const setupSocket = (io: Server) => {
     socket.on('message:typing', (data) => {
       const { chatType, chatId } = data;
       if (chatType === 'PRIVATE') {
-        io.to(`user:${chatId}`).emit('message:typing', { userId, chatId });
+        const parts = String(chatId).split('_').map(Number);
+        const targetUserId = parts.find((id: number) => id !== userId);
+        if (targetUserId) {
+          io.to(`user:${targetUserId}`).emit('message:typing', { userId, chatId });
+        }
       } else {
         socket.to(`group:${chatId}`).emit('message:typing', { userId, chatId });
       }
@@ -95,7 +100,11 @@ export const setupSocket = (io: Server) => {
     socket.on('message:stop-typing', (data) => {
       const { chatType, chatId } = data;
       if (chatType === 'PRIVATE') {
-        io.to(`user:${chatId}`).emit('message:stop-typing', { userId, chatId });
+        const parts = String(chatId).split('_').map(Number);
+        const targetUserId = parts.find((id: number) => id !== userId);
+        if (targetUserId) {
+          io.to(`user:${targetUserId}`).emit('message:stop-typing', { userId, chatId });
+        }
       } else {
         socket.to(`group:${chatId}`).emit('message:stop-typing', { userId, chatId });
       }
@@ -113,7 +122,11 @@ export const setupSocket = (io: Server) => {
           });
         }
         if (chatType === 'PRIVATE') {
-          io.to(`user:${chatId}`).emit('message:read', { userId, messageIds, readBy: userId });
+          const parts = String(chatId).split('_').map(Number);
+          const targetUserId = parts.find((id: number) => id !== userId);
+          if (targetUserId) {
+            io.to(`user:${targetUserId}`).emit('message:read', { userId, messageIds, readBy: userId });
+          }
         } else {
           io.to(`group:${chatId}`).emit('message:read', { userId, messageIds, readBy: userId });
         }
@@ -172,7 +185,12 @@ export const setupSocket = (io: Server) => {
           });
           const payload = { messageId, chatType: message.chatType, chatId: message.chatId };
           if (message.chatType === 'PRIVATE') {
-            io.to(`user:${message.chatId}`).emit('message:deleted', payload);
+            const parts = String(message.chatId).split('_').map(Number);
+            const targetUserId = parts.find((id: number) => id !== userId);
+            if (targetUserId) {
+              io.to(`user:${targetUserId}`).emit('message:deleted', payload);
+            }
+            io.to(`user:${userId}`).emit('message:deleted', payload);
           } else {
             io.to(`group:${message.chatId}`).emit('message:deleted', payload);
           }
@@ -217,8 +235,17 @@ export const setupSocket = (io: Server) => {
       io.to(`user:${targetId}`).emit('call:signal', { userId, signal });
     });
 
-    socket.on('group:join', (data) => {
-      socket.join(`group:${data.groupId}`);
+    socket.on('group:join', async (data) => {
+      try {
+        const membership = await prisma.groupMember.findFirst({
+          where: { groupId: data.groupId, userId },
+        });
+        if (membership) {
+          socket.join(`group:${data.groupId}`);
+        }
+      } catch (error) {
+        console.error('Group join error:', error);
+      }
     });
 
     socket.on('group:leave', (data) => {

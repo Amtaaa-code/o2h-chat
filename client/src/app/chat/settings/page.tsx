@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
   User,
@@ -40,6 +40,102 @@ export default function SettingsPage() {
     phoneNumber: user?.profile?.phoneNumber || "",
     bio: user?.profile?.bio || "",
   });
+
+  const [settings, setSettings] = useState({
+    notifications: true,
+    soundEnabled: true,
+    showPreview: false,
+    lastSeen: true,
+    profilePhoto: true,
+    readReceipts: true,
+    groupInvite: false,
+    theme: "dark",
+    language: "en",
+  });
+
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: "",
+  });
+
+  const [loadingSettings, setLoadingSettings] = useState(true);
+  const [savingSettings, setSavingSettings] = useState(false);
+
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const { data } = await api.get("/settings");
+        if (data.success && data.data) {
+          setSettings((prev) => ({
+            ...prev,
+            notifications: data.data.notifications ?? true,
+            soundEnabled: data.data.soundEnabled ?? true,
+            showPreview: data.data.showPreview ?? false,
+            lastSeen: data.data.lastSeen ?? true,
+            profilePhoto: data.data.profilePhoto ?? true,
+            readReceipts: data.data.readReceipts ?? true,
+            groupInvite: data.data.groupInvite ?? false,
+            theme: data.data.theme || "dark",
+            language: data.data.language || "en",
+          }));
+        }
+      } catch (error) {
+        console.error("Failed to fetch settings:", error);
+      } finally {
+        setLoadingSettings(false);
+      }
+    };
+    fetchSettings();
+  }, []);
+
+  const updateSetting = async (key: string, value: boolean | string) => {
+    setSettings((prev) => ({ ...prev, [key]: value }));
+    setSavingSettings(true);
+    try {
+      await api.put("/settings", { [key]: value });
+    } catch (error) {
+      console.error("Failed to save setting:", error);
+    } finally {
+      setSavingSettings(false);
+    }
+  };
+
+  const handleChangePassword = async () => {
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      alert("Passwords do not match");
+      return;
+    }
+    if (passwordForm.newPassword.length < 6) {
+      alert("Password must be at least 6 characters");
+      return;
+    }
+    try {
+      const { data } = await api.put("/users/me/password", {
+        currentPassword: passwordForm.currentPassword,
+        newPassword: passwordForm.newPassword,
+      });
+      if (data.success) {
+        setPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
+        alert("Password changed successfully");
+      }
+    } catch (error: any) {
+      alert(error?.response?.data?.message || "Failed to change password");
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!confirm("Are you sure you want to delete your account? This action cannot be undone.")) return;
+    if (!confirm("This will permanently delete all your data. Type 'DELETE' to confirm.")) return;
+    try {
+      await api.delete("/users/me");
+      localStorage.removeItem("accessToken");
+      localStorage.removeItem("refreshToken");
+      router.push("/login");
+    } catch (error) {
+      alert("Failed to delete account");
+    }
+  };
 
   const settingsSections = [
     {
@@ -97,6 +193,14 @@ export default function SettingsPage() {
       description: "Two-factor authentication, sessions",
       color: "text-red-400",
       bg: "bg-red-400/10",
+    },
+    {
+      id: "account",
+      icon: User,
+      title: "Account",
+      description: "Password, delete account",
+      color: "text-orange-400",
+      bg: "bg-orange-400/10",
     },
   ];
 
@@ -201,11 +305,9 @@ export default function SettingsPage() {
         return (
           <div className="space-y-3">
             {[
-              { label: "Message Notifications", desc: "Receive notifications for new messages", icon: MessageCircle, default: true },
-              { label: "Call Notifications", desc: "Receive notifications for incoming calls", icon: Phone, default: true },
-              { label: "Group Notifications", desc: "Receive notifications for group messages", icon: Bell, default: true },
-              { label: "Sound", desc: "Play sound for notifications", icon: Bell, default: true },
-              { label: "Show Preview", desc: "Show message content in notifications", icon: Eye, default: false },
+              { label: "Message Notifications", desc: "Receive notifications for new messages", icon: MessageCircle, key: "notifications" },
+              { label: "Call Notifications", desc: "Receive notifications for incoming calls", icon: Phone, key: "soundEnabled" },
+              { label: "Show Preview", desc: "Show message content in notifications", icon: Eye, key: "showPreview" },
             ].map((item) => (
               <div key={item.label} className="flex items-center justify-between p-4 bg-[#0B1220] rounded-2xl border border-[#1B2434]">
                 <div className="flex items-center gap-3">
@@ -217,7 +319,10 @@ export default function SettingsPage() {
                     <p className="text-xs text-white/40">{item.desc}</p>
                   </div>
                 </div>
-                <Switch defaultChecked={item.default} />
+                <Switch
+                  checked={settings[item.key as keyof typeof settings] as boolean}
+                  onCheckedChange={(val) => updateSetting(item.key, val)}
+                />
               </div>
             ))}
           </div>
@@ -227,10 +332,10 @@ export default function SettingsPage() {
         return (
           <div className="space-y-3">
             {[
-              { label: "Last Seen", desc: "Show when you were last online", icon: Eye, default: true },
-              { label: "Profile Photo", desc: "Who can see your photo", icon: User, default: true },
-              { label: "Read Receipts", desc: "Show blue ticks when you read messages", icon: MessageCircle, default: true },
-              { label: "Groups", desc: "Who can add you to groups", icon: Ban, default: false },
+              { label: "Last Seen", desc: "Show when you were last online", icon: Eye, key: "lastSeen" },
+              { label: "Profile Photo", desc: "Who can see your photo", icon: User, key: "profilePhoto" },
+              { label: "Read Receipts", desc: "Show blue ticks when you read messages", icon: MessageCircle, key: "readReceipts" },
+              { label: "Groups", desc: "Who can add you to groups", icon: Ban, key: "groupInvite" },
             ].map((item) => (
               <div key={item.label} className="flex items-center justify-between p-4 bg-[#0B1220] rounded-2xl border border-[#1B2434]">
                 <div className="flex items-center gap-3">
@@ -242,7 +347,10 @@ export default function SettingsPage() {
                     <p className="text-xs text-white/40">{item.desc}</p>
                   </div>
                 </div>
-                <Switch defaultChecked={item.default} />
+                <Switch
+                  checked={settings[item.key as keyof typeof settings] as boolean}
+                  onCheckedChange={(val) => updateSetting(item.key, val)}
+                />
               </div>
             ))}
           </div>
@@ -317,6 +425,94 @@ export default function SettingsPage() {
                 </div>
               </div>
             ))}
+          </div>
+        );
+
+      case "security":
+        return (
+          <div className="space-y-4">
+            <div className="p-4 bg-[#0B1220] rounded-2xl border border-[#1B2434]">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-xl bg-green-400/10 flex items-center justify-center">
+                  <Shield className="h-5 w-5 text-green-400" />
+                </div>
+                <div>
+                  <p className="font-medium text-white text-sm">Two-Factor Authentication</p>
+                  <p className="text-xs text-white/40">Add an extra layer of security</p>
+                </div>
+              </div>
+              <p className="text-xs text-white/30">Coming soon</p>
+            </div>
+            <div className="p-4 bg-[#0B1220] rounded-2xl border border-[#1B2434]">
+              <p className="font-medium text-white text-sm mb-2">Active Sessions</p>
+              <div className="flex items-center gap-3 p-3 bg-white/5 rounded-xl">
+                <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center">
+                  <Monitor className="h-4 w-4 text-primary" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm text-white">Current Session</p>
+                  <p className="text-xs text-white/40">Active now</p>
+                </div>
+                <span className="text-xs text-green-400 font-medium">Active</span>
+              </div>
+            </div>
+          </div>
+        );
+
+      case "account":
+        return (
+          <div className="space-y-6">
+            <div className="space-y-3">
+              <h3 className="text-sm font-medium text-white">Change Password</h3>
+              <div className="space-y-3">
+                <Input
+                  type="password"
+                  placeholder="Current password"
+                  value={passwordForm.currentPassword}
+                  onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
+                  className="bg-[#0B1220] border-[#1B2434] h-11"
+                />
+                <Input
+                  type="password"
+                  placeholder="New password"
+                  value={passwordForm.newPassword}
+                  onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
+                  className="bg-[#0B1220] border-[#1B2434] h-11"
+                />
+                <Input
+                  type="password"
+                  placeholder="Confirm new password"
+                  value={passwordForm.confirmPassword}
+                  onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
+                  className="bg-[#0B1220] border-[#1B2434] h-11"
+                />
+                <Button
+                  className="w-full gradient-primary h-11"
+                  onClick={handleChangePassword}
+                  disabled={!passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.confirmPassword}
+                >
+                  Change Password
+                </Button>
+              </div>
+            </div>
+
+            <Separator className="bg-[#1B2434]" />
+
+            <div className="space-y-3">
+              <h3 className="text-sm font-medium text-red-400">Danger Zone</h3>
+              <div className="p-4 bg-red-400/5 rounded-2xl border border-red-400/20">
+                <p className="text-sm text-white/60 mb-3">
+                  Once you delete your account, there is no going back. All your data will be permanently removed.
+                </p>
+                <Button
+                  variant="destructive"
+                  className="w-full"
+                  onClick={handleDeleteAccount}
+                >
+                  Delete Account
+                </Button>
+              </div>
+            </div>
           </div>
         );
 
