@@ -151,15 +151,16 @@ export default function LoginPage() {
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <Button variant="outline" className="h-11" type="button">
+            <Button variant="outline" className="h-11 opacity-50 cursor-not-allowed" type="button" title="Coming soon">
               <Github className="h-5 w-5 mr-2" />
               GitHub
             </Button>
-            <Button variant="outline" className="h-11" type="button">
+            <Button variant="outline" className="h-11 opacity-50 cursor-not-allowed" type="button" title="Coming soon">
               <Chrome className="h-5 w-5 mr-2" />
               Google
             </Button>
           </div>
+          <p className="text-center text-xs text-white/30 mt-2">OAuth login coming soon</p>
 
           <p className="text-center mt-6 text-sm text-white/60">
             Don&apos;t have an account?{" "}

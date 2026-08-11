@@ -1,0 +1,11 @@
+fix: Phase 3C - forwarding, admin panel, group leave, OAuth fix
+
+- Add message forwarding endpoint (POST /messages/:id/forward)
+- Add ForwardDialog UI with chat/group picker
+- Add group leave endpoint (POST /groups/:id/leave)
+- Add admin stats endpoint (GET /users/admin/stats)
+- Add admin user list endpoint (GET /users/admin/users)
+- Add admin delete user endpoint (DELETE /users/admin/users/:id)
+- Rewrite admin panel with real data, user management table
+- Fix OAuth buttons to show "Coming Soon" instead of dead links
+- Add notification sound on new message (socket event)

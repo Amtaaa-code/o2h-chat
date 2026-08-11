@@ -31,6 +31,7 @@ import {
   ChevronUp,
   ListChecks,
   Loader2,
+  Users,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -92,6 +93,8 @@ export default function ChatWindow() {
   const [selectedMessage, setSelectedMessage] = useState<number | null>(null);
   const [contextMenu, setContextMenu] = useState<{ msg: Message; x: number; y: number } | null>(null);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
+  const [forwardMessage, setForwardMessage] = useState<Message | null>(null);
+  const [showForwardDialog, setShowForwardDialog] = useState(false);
   const [editingMessage, setEditingMessage] = useState<Message | null>(null);
   const [editValue, setEditValue] = useState("");
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -334,6 +337,26 @@ export default function ChatWindow() {
     emitSocket("message:reaction", { messageId, emoji });
     setContextMenu(null);
     setSelectedMessage(null);
+  };
+
+  const handleForward = async (targetChat: { id: string; type: string; name: string }) => {
+    if (!forwardMessage) return;
+    try {
+      const { data } = await api.post(`/messages/${forwardMessage.id}/forward`, {
+        chatType: targetChat.type,
+        chatId: targetChat.id,
+      });
+      if (data.success) {
+        const msg = { ...data.data, sender: { id: user!.id, username: user!.username, avatar: user!.avatar, profile: user!.profile } };
+        addMessage(msg as any);
+        emitSocket("message:delivered", msg);
+      }
+    } catch (error) {
+      console.error("Forward failed:", error);
+    } finally {
+      setForwardMessage(null);
+      setShowForwardDialog(false);
+    }
   };
 
   const handleContextMenu = (e: React.MouseEvent, msg: Message) => {
@@ -785,7 +808,7 @@ export default function ChatWindow() {
             {[
               { icon: Reply, label: "Reply", action: () => { setReplyTo(contextMenu.msg); setContextMenu(null); inputRef.current?.focus(); } },
               ...(contextMenu.msg.content ? [{ icon: Copy, label: "Copy", action: () => handleCopy(contextMenu.msg.content!) }] : []),
-              { icon: Forward, label: "Forward", action: () => setContextMenu(null) },
+              { icon: Forward, label: "Forward", action: () => { setForwardMessage(contextMenu.msg); setShowForwardDialog(true); setContextMenu(null); } },
               { icon: Pin, label: contextMenu.msg.isPinned ? "Unpin" : "Pin", action: () => setContextMenu(null) },
               ...(contextMenu.msg.senderId === user?.id ? [{ icon: Edit3, label: "Edit", action: () => { setEditingMessage(contextMenu.msg); setEditValue(contextMenu.msg.content || ""); setContextMenu(null); inputRef.current?.focus(); } }] : []),
               { icon: Trash2, label: "Delete", danger: true, action: () => { emitSocket("message:delete", { messageId: contextMenu.msg.id }); setContextMenu(null); } },
@@ -820,6 +843,83 @@ export default function ChatWindow() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Forward Dialog */}
+      <AnimatePresence>
+        {showForwardDialog && (
+          <ForwardDialog
+            onForward={handleForward}
+            onClose={() => { setShowForwardDialog(false); setForwardMessage(null); }}
+          />
+        )}
+      </AnimatePresence>
     </div>
+  );
+}
+
+function ForwardDialog({ onForward, onClose }: { onForward: (chat: { id: string; type: string; name: string }) => void; onClose: () => void }) {
+  const [chats, setChats] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+
+  useEffect(() => {
+    const fetchChats = async () => {
+      try {
+        const [convRes, groupRes] = await Promise.all([
+          api.get("/messages/conversations").catch(() => ({ data: { data: [] } })),
+          api.get("/groups").catch(() => ({ data: { data: [] } })),
+        ]);
+        const all = [
+          ...(convRes.data?.data || []).map((c: any) => ({ id: c.id, type: "PRIVATE", name: c.name })),
+          ...(groupRes.data?.data || []).map((g: any) => ({ id: String(g.id), type: "GROUP", name: g.name })),
+        ];
+        setChats(all);
+      } catch (error) {
+        console.error("Failed to fetch chats:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchChats();
+  }, []);
+
+  const filtered = chats.filter((c) => c.name.toLowerCase().includes(search.toLowerCase()));
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+      <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }}
+        className="bg-[#101826] border border-[#1B2434] rounded-2xl w-full max-w-md shadow-2xl overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-[#1B2434]">
+          <h3 className="font-semibold text-white">Forward to...</h3>
+          <button onClick={onClose} className="text-white/40 hover:text-white"><X className="h-5 w-5" /></button>
+        </div>
+        <div className="px-4 py-3">
+          <Input placeholder="Search chats..." value={search} onChange={(e) => setSearch(e.target.value)} className="bg-[#0B1220] border-[#1B2434]" autoFocus />
+        </div>
+        <ScrollArea className="max-h-[300px] px-2 pb-2">
+          {loading ? (
+            <div className="flex items-center justify-center py-8"><div className="w-6 h-6 border-2 border-primary/30 border-t-primary rounded-full animate-spin" /></div>
+          ) : filtered.length === 0 ? (
+            <p className="text-center text-white/30 text-sm py-8">No chats found</p>
+          ) : (
+            <div className="space-y-0.5">
+              {filtered.map((chat) => (
+                <button key={chat.id + chat.type} onClick={() => onForward(chat)}
+                  className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 transition-colors text-left">
+                  <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
+                    {chat.type === "GROUP" ? <Users className="h-5 w-5 text-primary" /> : <Send className="h-5 w-5 text-primary" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-white truncate">{chat.name}</p>
+                    <p className="text-xs text-white/40">{chat.type === "GROUP" ? "Group" : "Private"}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </ScrollArea>
+      </motion.div>
+    </motion.div>
   );
 }

@@ -216,4 +216,50 @@ router.post('/:id/pin', authMiddleware, async (req: any, res) => {
   }
 });
 
+const forwardMessageSchema = z.object({
+  chatType: z.enum(['PRIVATE', 'GROUP']),
+  chatId: z.string().min(1),
+});
+
+router.post('/:id/forward', authMiddleware, validate(forwardMessageSchema), async (req: any, res) => {
+  try {
+    const { id } = req.params;
+    const { chatType, chatId } = req.body;
+
+    const original = await prisma.message.findUnique({
+      where: { id: parseInt(id) },
+      include: { attachments: true },
+    });
+    if (!original) return res.status(404).json({ success: false, message: 'Message not found' });
+
+    const forwarded = await prisma.message.create({
+      data: {
+        senderId: req.userId,
+        chatType,
+        chatId,
+        content: original.content,
+        type: original.type,
+        attachments: original.attachments.length > 0 ? {
+          create: original.attachments.map((a) => ({
+            filename: a.filename,
+            originalName: a.originalName,
+            mimeType: a.mimeType,
+            size: a.size,
+            url: a.url,
+          })),
+        } : undefined,
+      },
+      include: {
+        sender: { select: { id: true, username: true, avatar: true, profile: true } },
+        attachments: true,
+      },
+    });
+
+    res.status(201).json({ success: true, data: forwarded });
+  } catch (error) {
+    console.error('Forward message error:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+
 export default router;

@@ -125,4 +125,70 @@ router.delete('/me', authMiddleware, async (req: any, res) => {
   }
 });
 
+// Admin endpoints
+router.get('/admin/stats', authMiddleware, async (req: any, res) => {
+  try {
+    const user = await prisma.user.findUnique({ where: { id: req.userId } });
+    if (!user || user.role !== 'ADMIN') return res.status(403).json({ success: false, message: 'Admin access required' });
+
+    const [totalUsers, totalMessages, activeGroups, onlineUsers] = await Promise.all([
+      prisma.user.count(),
+      prisma.message.count({ where: { isDeleted: false } }),
+      prisma.group.count(),
+      prisma.user.count({ where: { isOnline: true } }),
+    ]);
+
+    res.json({
+      success: true,
+      data: { totalUsers, totalMessages, activeGroups, onlineUsers },
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+
+router.get('/admin/users', authMiddleware, async (req: any, res) => {
+  try {
+    const user = await prisma.user.findUnique({ where: { id: req.userId } });
+    if (!user || user.role !== 'ADMIN') return res.status(403).json({ success: false, message: 'Admin access required' });
+
+    const users = await prisma.user.findMany({
+      select: { id: true, email: true, username: true, avatar: true, role: true, isOnline: true, lastSeenAt: true, createdAt: true, profile: true },
+      orderBy: { createdAt: 'desc' },
+    });
+    res.json({ success: true, data: users });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+
+router.delete('/admin/users/:id', authMiddleware, async (req: any, res) => {
+  try {
+    const admin = await prisma.user.findUnique({ where: { id: req.userId } });
+    if (!admin || admin.role !== 'ADMIN') return res.status(403).json({ success: false, message: 'Admin access required' });
+
+    const targetId = parseInt(req.params.id);
+    if (targetId === req.userId) return res.status(400).json({ success: false, message: 'Cannot delete yourself' });
+
+    const target = await prisma.user.findUnique({ where: { id: targetId } });
+    if (!target) return res.status(404).json({ success: false, message: 'User not found' });
+
+    await prisma.session.deleteMany({ where: { userId: targetId } });
+    await prisma.notification.deleteMany({ where: { userId: targetId } });
+    await prisma.reaction.deleteMany({ where: { user: { id: targetId } } });
+    await prisma.messageRead.deleteMany({ where: { userId: targetId } });
+    await prisma.statusView.deleteMany({ where: { userId: targetId } });
+    await prisma.status.deleteMany({ where: { userId: targetId } });
+    await prisma.contact.deleteMany({ where: { OR: [{ ownerId: targetId }, { targetId }] } });
+    await prisma.groupMember.deleteMany({ where: { userId: targetId } });
+    await prisma.profile.deleteMany({ where: { userId: targetId } });
+    await prisma.userSettings.deleteMany({ where: { userId: targetId } });
+    await prisma.message.updateMany({ where: { senderId: targetId }, data: { isDeleted: true, content: null } });
+    await prisma.user.delete({ where: { id: targetId } });
+    res.json({ success: true, message: 'User deleted by admin' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+
 export default router;

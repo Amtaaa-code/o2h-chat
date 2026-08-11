@@ -131,6 +131,22 @@ router.delete('/:id/members/:memberId', authMiddleware, async (req: any, res) =>
   }
 });
 
+router.post('/:id/leave', authMiddleware, async (req: any, res) => {
+  try {
+    const groupId = parseInt(req.params.id);
+    const membership = await prisma.groupMember.findFirst({
+      where: { groupId, userId: req.userId },
+    });
+    if (!membership) return res.status(404).json({ success: false, message: 'Not a member of this group' });
+    if (membership.role === 'OWNER') return res.status(400).json({ success: false, message: 'Owner cannot leave group. Transfer ownership first.' });
+
+    await prisma.groupMember.delete({ where: { id: membership.id } });
+    res.json({ success: true, message: 'Left group' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+
 router.delete('/:id', authMiddleware, async (req: any, res) => {
   try {
     await prisma.group.deleteMany({
