@@ -13,7 +13,6 @@ export const setupSocket = (io: Server) => {
     try {
       const token = socket.handshake.auth.token || socket.handshake.query.token;
       if (!token) return next(new Error('Authentication error'));
-
       const decoded = jwt.verify(token as string, process.env.JWT_SECRET!) as { userId: number };
       socket.userId = decoded.userId;
       next();
@@ -26,75 +25,60 @@ export const setupSocket = (io: Server) => {
     const userId = socket.userId!;
     console.log(`User connected: ${userId}`);
 
-    // Update online status
     await prisma.user.update({
       where: { id: userId },
       data: { isOnline: true, lastSeenAt: new Date() },
     });
 
-    // Join personal room
     socket.join(`user:${userId}`);
 
-    // Broadcast online status
+    const memberships = await prisma.groupMember.findMany({
+      where: { userId },
+      select: { groupId: true },
+    });
+    for (const m of memberships) {
+      socket.join(`group:${m.groupId}`);
+    }
+
     io.emit('user:online', { userId });
 
-    // Handle chat events
-    socket.on('message:send', async (data) => {
-      try {
-        const { chatType, chatId, content, type, replyToId, attachments } = data;
-
-        const message = await prisma.message.create({
-          data: {
-            senderId: userId,
-            chatType,
-            chatId,
-            content: content || null,
-            type: type || 'TEXT',
-            replyToId,
-            ...(attachments && attachments.length > 0
-              ? {
-                  attachments: {
-                    create: attachments.map((a: any) => ({
-                      filename: a.filename,
-                      originalName: a.originalName,
-                      mimeType: a.mimeType,
-                      size: a.size,
-                      url: a.url,
-                    })),
-                  },
-                }
-              : {}),
-          },
-          include: {
-            sender: { include: { profile: true } },
-            attachments: true,
-            reactions: { include: { user: { select: { id: true, username: true } } } },
-          },
-        });
-
-        if (chatType === 'PRIVATE') {
-          io.to(`user:${chatId}`).emit('message:new', message);
-          if (String(chatId) !== String(userId)) {
-            io.to(`user:${userId}`).emit('message:new', message);
-          }
-        } else {
-          io.to(`group:${chatId}`).emit('message:new', message);
-        }
-      } catch (error) {
-        console.error('Message send error:', error);
-      }
+    const onlineUsers = await prisma.user.findMany({
+      where: { isOnline: true },
+      select: { id: true },
     });
+    socket.emit('users:online', { userIds: onlineUsers.map(u => u.id) });
 
-    socket.on('message:delivered', (data) => {
+    socket.on('message:delivered', async (data) => {
       try {
-        const { chatType, chatId } = data;
+        const message = data;
+        const { chatType, chatId } = message;
         if (chatType === 'PRIVATE') {
           const targetUserId = parseInt(chatId);
           if (targetUserId !== userId) {
-            io.to(`user:${targetUserId}`).emit('message:new', data);
+            io.to(`user:${targetUserId}`).emit('message:new', message);
           }
+          try {
+            const sender = await prisma.user.findUnique({
+              where: { id: userId },
+              include: { profile: true },
+            });
+            await prisma.notification.create({
+              data: {
+                userId: targetUserId,
+                title: sender?.profile?.fullName || sender?.username || 'New Message',
+                body: message.content || 'Attachment',
+                type: 'MESSAGE',
+                data: JSON.stringify({ chatType, chatId: String(userId), messageId: message.id }),
+              },
+            });
+            io.to(`user:${targetUserId}`).emit('notification:new', {
+              title: sender?.profile?.fullName || sender?.username,
+              body: message.content || 'Attachment',
+              type: 'MESSAGE',
+            });
+          } catch (e) { /* ignore */ }
         } else if (chatType === 'GROUP') {
-          io.to(`group:${chatId}`).emit('message:new', data);
+          io.to(`group:${chatId}`).emit('message:new', message);
         }
       } catch (error) {
         console.error('Message deliver error:', error);
@@ -106,7 +90,7 @@ export const setupSocket = (io: Server) => {
       if (chatType === 'PRIVATE') {
         io.to(`user:${chatId}`).emit('message:typing', { userId, chatId });
       } else {
-        io.to(`group:${chatId}`).emit('message:typing', { userId, chatId });
+        socket.to(`group:${chatId}`).emit('message:typing', { userId, chatId });
       }
     });
 
@@ -115,104 +99,118 @@ export const setupSocket = (io: Server) => {
       if (chatType === 'PRIVATE') {
         io.to(`user:${chatId}`).emit('message:stop-typing', { userId, chatId });
       } else {
-        io.to(`group:${chatId}`).emit('message:stop-typing', { userId, chatId });
+        socket.to(`group:${chatId}`).emit('message:stop-typing', { userId, chatId });
       }
     });
 
     socket.on('message:read', async (data) => {
-      const { messageIds, chatId, chatType } = data;
-
-      for (const messageId of messageIds) {
-        await prisma.messageRead.upsert({
-          where: { messageId_userId: { messageId, userId } },
-          create: { messageId, userId },
-          update: { readAt: new Date() },
-        });
-      }
-
-      if (chatType === 'PRIVATE') {
-        io.to(`user:${chatId}`).emit('message:read', { userId, messageIds });
-      } else {
-        io.to(`group:${chatId}`).emit('message:read', { userId, messageIds });
+      try {
+        const { messageIds, chatId, chatType } = data;
+        if (!messageIds || !Array.isArray(messageIds)) return;
+        for (const messageId of messageIds) {
+          await prisma.messageRead.upsert({
+            where: { messageId_userId: { messageId, userId } },
+            create: { messageId, userId },
+            update: { readAt: new Date() },
+          });
+        }
+        if (chatType === 'PRIVATE') {
+          io.to(`user:${chatId}`).emit('message:read', { userId, messageIds, readBy: userId });
+        } else {
+          io.to(`group:${chatId}`).emit('message:read', { userId, messageIds, readBy: userId });
+        }
+      } catch (error) {
+        console.error('Message read error:', error);
       }
     });
 
     socket.on('message:reaction', async (data) => {
-      const { messageId, emoji } = data;
-
-      const existing = await prisma.reaction.findUnique({
-        where: { messageId_userId: { messageId, userId } },
-      });
-
-      if (existing) {
-        if (existing.emoji === emoji) {
-          await prisma.reaction.delete({ where: { id: existing.id } });
-        } else {
-          await prisma.reaction.update({
-            where: { id: existing.id },
-            data: { emoji },
-          });
-        }
-      } else {
-        await prisma.reaction.create({
-          data: { messageId, userId, emoji },
+      try {
+        const { messageId, emoji } = data;
+        const existing = await prisma.reaction.findUnique({
+          where: { messageId_userId: { messageId, userId } },
         });
+        if (existing) {
+          if (existing.emoji === emoji) {
+            await prisma.reaction.delete({ where: { id: existing.id } });
+          } else {
+            await prisma.reaction.update({ where: { id: existing.id }, data: { emoji } });
+          }
+        } else {
+          await prisma.reaction.create({ data: { messageId, userId, emoji } });
+        }
+        const reactions = await prisma.reaction.findMany({
+          where: { messageId },
+          include: { user: { select: { id: true, username: true } } },
+        });
+        const message = await prisma.message.findUnique({
+          where: { id: messageId },
+          select: { chatType: true, chatId: true },
+        });
+        if (message) {
+          const payload = { messageId, reactions };
+          if (message.chatType === 'PRIVATE') {
+            io.to(`user:${message.chatId}`).emit('message:reaction', payload);
+          } else {
+            io.to(`group:${message.chatId}`).emit('message:reaction', payload);
+          }
+        }
+      } catch (error) {
+        console.error('Reaction error:', error);
       }
+    });
 
-      io.emit('message:reaction', { messageId, userId, emoji });
+    socket.on('message:delete', async (data) => {
+      try {
+        const { messageId } = data;
+        const message = await prisma.message.findUnique({
+          where: { id: messageId },
+          select: { chatType: true, chatId: true, senderId: true },
+        });
+        if (message && message.senderId === userId) {
+          await prisma.message.update({
+            where: { id: messageId },
+            data: { isDeleted: true, content: null },
+          });
+          const payload = { messageId, chatType: message.chatType, chatId: message.chatId };
+          if (message.chatType === 'PRIVATE') {
+            io.to(`user:${message.chatId}`).emit('message:deleted', payload);
+          } else {
+            io.to(`group:${message.chatId}`).emit('message:deleted', payload);
+          }
+        }
+      } catch (error) {
+        console.error('Message delete error:', error);
+      }
     });
 
     socket.on('call:initiate', async (data) => {
       const { targetId, type } = data;
-
       const call = await prisma.call.create({
-        data: {
-          callerId: userId,
-          targetId,
-          type,
-          status: 'OUTGOING',
-        },
+        data: { callerId: userId, targetId, type, status: 'OUTGOING' },
       });
-
-      io.to(`user:${targetId}`).emit('call:incoming', {
-        call,
-        caller: await prisma.user.findUnique({
-          where: { id: userId },
-          include: { profile: true },
-        }),
+      const caller = await prisma.user.findUnique({
+        where: { id: userId },
+        include: { profile: true },
       });
+      io.to(`user:${targetId}`).emit('call:incoming', { call, caller });
     });
 
     socket.on('call:accept', async (data) => {
       const { callId } = data;
-
-      await prisma.call.update({
-        where: { id: callId },
-        data: { status: 'ACCEPTED' },
-      });
-
+      await prisma.call.update({ where: { id: callId }, data: { status: 'ACCEPTED' } });
       io.emit('call:accepted', { callId });
     });
 
     socket.on('call:reject', async (data) => {
       const { callId } = data;
-
-      await prisma.call.update({
-        where: { id: callId },
-        data: { status: 'REJECTED', endedAt: new Date() },
-      });
-
+      await prisma.call.update({ where: { id: callId }, data: { status: 'REJECTED', endedAt: new Date() } });
       io.emit('call:rejected', { callId });
     });
 
     socket.on('call:end', async (data) => {
       const { callId } = data;
-
-      await prisma.call.update({
-        where: { id: callId },
-        data: { status: 'ENDED', endedAt: new Date() },
-      });
-
+      await prisma.call.update({ where: { id: callId }, data: { status: 'ENDED', endedAt: new Date() } });
       io.emit('call:ended', { callId });
     });
 
@@ -222,23 +220,19 @@ export const setupSocket = (io: Server) => {
     });
 
     socket.on('group:join', (data) => {
-      const { groupId } = data;
-      socket.join(`group:${groupId}`);
+      socket.join(`group:${data.groupId}`);
     });
 
     socket.on('group:leave', (data) => {
-      const { groupId } = data;
-      socket.leave(`group:${groupId}`);
+      socket.leave(`group:${data.groupId}`);
     });
 
     socket.on('disconnect', async () => {
       console.log(`User disconnected: ${userId}`);
-
       await prisma.user.update({
         where: { id: userId },
         data: { isOnline: false, lastSeenAt: new Date() },
       });
-
       io.emit('user:offline', { userId, lastSeenAt: new Date() });
     });
   });

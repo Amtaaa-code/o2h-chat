@@ -82,6 +82,15 @@ interface Message {
   replyTo?: Message;
 }
 
+interface Notification {
+  id: number;
+  title: string;
+  body: string;
+  type: string;
+  isRead: boolean;
+  createdAt: string;
+}
+
 interface AppState {
   user: User | null;
   setUser: (user: User | null) => void;
@@ -104,6 +113,7 @@ interface AppState {
   onlineUsers: Set<number>;
   addOnlineUser: (userId: number) => void;
   removeOnlineUser: (userId: number) => void;
+  setOnlineUsers: (userIds: number[]) => void;
 
   sidebarCollapsed: boolean;
   setSidebarCollapsed: (collapsed: boolean) => void;
@@ -113,6 +123,11 @@ interface AppState {
 
   searchQuery: string;
   setSearchQuery: (query: string) => void;
+
+  notifications: Notification[];
+  addNotification: (notification: Notification) => void;
+  setNotifications: (notifications: Notification[]) => void;
+  unreadNotificationCount: number;
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -132,10 +147,23 @@ export const useAppStore = create<AppState>((set) => ({
   messages: [],
   setMessages: (messages) => set({ messages }),
   addMessage: (message) =>
-    set((state) => ({ messages: [...state.messages, message] })),
+    set((state) => {
+      const exists = state.messages.some((m) => m.id === message.id);
+      if (exists) return state;
+      return { messages: [...state.messages, message] };
+    }),
   updateMessage: (messageId, data) =>
     set((state) => ({
-      messages: state.messages.map((m) => (m.id === messageId ? { ...m, ...data } : m)),
+      messages: state.messages.map((m) => {
+        if (m.id !== messageId) return m;
+        const updated = { ...m, ...data };
+        if (data.reads && m.reads) {
+          const existingIds = new Set(m.reads.map((r) => r.userId));
+          const newReads = data.reads.filter((r: any) => !existingIds.has(r.userId));
+          updated.reads = [...m.reads, ...newReads];
+        }
+        return updated;
+      }),
     })),
 
   typingUsers: {},
@@ -161,6 +189,8 @@ export const useAppStore = create<AppState>((set) => ({
       newSet.delete(userId);
       return { onlineUsers: newSet };
     }),
+  setOnlineUsers: (userIds) =>
+    set({ onlineUsers: new Set(userIds) }),
 
   sidebarCollapsed: false,
   setSidebarCollapsed: (sidebarCollapsed) => set({ sidebarCollapsed }),
@@ -170,4 +200,17 @@ export const useAppStore = create<AppState>((set) => ({
 
   searchQuery: '',
   setSearchQuery: (searchQuery) => set({ searchQuery }),
+
+  notifications: [],
+  addNotification: (notification) =>
+    set((state) => ({
+      notifications: [notification, ...state.notifications],
+      unreadNotificationCount: state.unreadNotificationCount + 1,
+    })),
+  setNotifications: (notifications) =>
+    set({
+      notifications,
+      unreadNotificationCount: notifications.filter((n) => !n.isRead).length,
+    }),
+  unreadNotificationCount: 0,
 }));

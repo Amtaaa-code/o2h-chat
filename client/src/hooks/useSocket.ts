@@ -1,43 +1,92 @@
 'use client';
 
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useRef } from 'react';
 import { getSocket, onSocket, offSocket, emitSocket } from '@/lib/socket';
 import { useAppStore } from '@/lib/store';
 
 export const useSocket = () => {
-  const { user, addOnlineUser, removeOnlineUser, setTypingUser, addMessage } = useAppStore();
+  const { user, addOnlineUser, removeOnlineUser, setTypingUser, addMessage, updateMessage, setOnlineUsers } = useAppStore();
+  const typingTimersRef = useRef<Record<string, NodeJS.Timeout>>({});
 
   useEffect(() => {
     if (!user) return;
 
     const socket = getSocket();
 
-    onSocket('user:online', ({ userId }: { userId: number }) => {
+    const handleOnline = ({ userId }: { userId: number }) => {
       addOnlineUser(userId);
-    });
+    };
 
-    onSocket('user:offline', ({ userId }: { userId: number }) => {
+    const handleOffline = ({ userId }: { userId: number }) => {
       removeOnlineUser(userId);
-    });
+    };
 
-    onSocket('message:new', (message: any) => {
+    const handleUsersOnline = ({ userIds }: { userIds: number[] }) => {
+      setOnlineUsers(userIds);
+    };
+
+    const handleMessageNew = (message: any) => {
       addMessage(message);
-    });
+    };
 
-    onSocket('message:typing', ({ userId: typingUserId, chatId }: { userId: number; chatId: string }) => {
+    const handleTyping = ({ userId: typingUserId, chatId }: { userId: number; chatId: string }) => {
       setTypingUser(chatId, typingUserId, true);
-    });
+      // Auto-clear typing after 5 seconds
+      const key = `${chatId}:${typingUserId}`;
+      if (typingTimersRef.current[key]) clearTimeout(typingTimersRef.current[key]);
+      typingTimersRef.current[key] = setTimeout(() => {
+        setTypingUser(chatId, typingUserId, false);
+      }, 5000);
+    };
 
-    onSocket('message:stop-typing', ({ userId: typingUserId, chatId }: { userId: number; chatId: string }) => {
+    const handleStopTyping = ({ userId: typingUserId, chatId }: { userId: number; chatId: string }) => {
       setTypingUser(chatId, typingUserId, false);
-    });
+      const key = `${chatId}:${typingUserId}`;
+      if (typingTimersRef.current[key]) {
+        clearTimeout(typingTimersRef.current[key]);
+        delete typingTimersRef.current[key];
+      }
+    };
+
+    const handleRead = ({ messageIds, readBy }: { messageIds: number[]; readBy: number }) => {
+      for (const messageId of messageIds) {
+        updateMessage(messageId, {
+          reads: [{ userId: readBy, readAt: new Date().toISOString() }],
+        });
+      }
+    };
+
+    const handleReaction = ({ messageId, reactions }: { messageId: number; reactions: any[] }) => {
+      updateMessage(messageId, { reactions });
+    };
+
+    const handleDeleted = ({ messageId }: { messageId: number }) => {
+      updateMessage(messageId, { isDeleted: true, content: null });
+    };
+
+    onSocket('user:online', handleOnline);
+    onSocket('user:offline', handleOffline);
+    onSocket('users:online', handleUsersOnline);
+    onSocket('message:new', handleMessageNew);
+    onSocket('message:typing', handleTyping);
+    onSocket('message:stop-typing', handleStopTyping);
+    onSocket('message:read', handleRead);
+    onSocket('message:reaction', handleReaction);
+    onSocket('message:deleted', handleDeleted);
 
     return () => {
-      offSocket('user:online');
-      offSocket('user:offline');
-      offSocket('message:new');
-      offSocket('message:typing');
-      offSocket('message:stop-typing');
+      offSocket('user:online', handleOnline);
+      offSocket('user:offline', handleOffline);
+      offSocket('users:online', handleUsersOnline);
+      offSocket('message:new', handleMessageNew);
+      offSocket('message:typing', handleTyping);
+      offSocket('message:stop-typing', handleStopTyping);
+      offSocket('message:read', handleRead);
+      offSocket('message:reaction', handleReaction);
+      offSocket('message:deleted', handleDeleted);
+      // Clear all typing timers
+      Object.values(typingTimersRef.current).forEach(clearTimeout);
+      typingTimersRef.current = {};
     };
   }, [user]);
 

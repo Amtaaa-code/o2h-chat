@@ -125,6 +125,17 @@ export default function ChatWindow() {
     }
   }, [messages]);
 
+  // Mark messages as read when viewing
+  useEffect(() => {
+    if (!activeChat || !user || messages.length === 0) return;
+    const unreadIds = messages
+      .filter((m) => m.senderId !== user.id && (!m.reads || !m.reads.some((r) => r.userId === user.id)))
+      .map((m) => m.id);
+    if (unreadIds.length > 0) {
+      markAsRead(unreadIds, activeChat.id, activeChat.type);
+    }
+  }, [messages, activeChat?.id]);
+
   useEffect(() => {
     const container = scrollContainerRef.current;
     if (!container) return;

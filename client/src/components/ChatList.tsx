@@ -42,7 +42,7 @@ interface ChatItem {
 }
 
 export default function ChatList({ onViewStory }: { onViewStory?: (stories: any[], user: any, index: number) => void }) {
-  const { activeChat, setActiveChat, searchQuery, setSearchQuery } = useAppStore();
+  const { activeChat, setActiveChat, searchQuery, setSearchQuery, user } = useAppStore();
   const [chats, setChats] = useState<ChatItem[]>([]);
   const [filteredChats, setFilteredChats] = useState<ChatItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -121,6 +121,49 @@ export default function ChatList({ onViewStory }: { onViewStory?: (stories: any[
       setLoading(false);
     }
   };
+
+  // Real-time chat list updates
+  useEffect(() => {
+    let mounted = true;
+    const loadSocket = async () => {
+      const { onSocket, offSocket } = await import('@/lib/socket');
+      const handleMessageNew = (message: any) => {
+        if (!mounted) return;
+        setChats((prev) => {
+          const chatUserId = message.chatType === 'PRIVATE'
+            ? (String(message.senderId) === String(message.chatId) ? message.chatId : String(message.senderId))
+            : null;
+          const chatId = message.chatType === 'GROUP' ? String(message.chatId) : chatUserId;
+          if (!chatId) return prev;
+          const existing = prev.find((c) => c.id === chatId);
+          const isOwn = message.senderId === user?.id;
+          if (existing) {
+            const updated = prev.map((c) =>
+              c.id === chatId
+                ? {
+                    ...c,
+                    lastMessage: {
+                      content: message.content || '📎 Attachment',
+                      createdAt: message.createdAt,
+                      sender: message.sender,
+                    },
+                    unreadCount: isOwn ? c.unreadCount : c.unreadCount + 1,
+                  }
+                : c
+            );
+            const chat = updated.find((c) => c.id === chatId)!;
+            const rest = updated.filter((c) => c.id !== chatId);
+            return [chat, ...rest];
+          }
+          return prev;
+        });
+      };
+      onSocket('message:new', handleMessageNew);
+      return () => { offSocket('message:new', handleMessageNew); };
+    };
+    loadSocket();
+    return () => { mounted = false; };
+  }, [user]);
 
   const handleContextMenu = (e: React.MouseEvent, chatId: string) => {
     e.preventDefault();
