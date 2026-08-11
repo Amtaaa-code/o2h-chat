@@ -21,6 +21,16 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
+
+    // Network error retry (max 2 retries)
+    if (!error.response && !originalRequest._networkRetry) {
+      originalRequest._networkRetry = (originalRequest._networkRetry || 0) + 1;
+      if (originalRequest._networkRetry <= 2) {
+        await new Promise((r) => setTimeout(r, 1000 * originalRequest._networkRetry));
+        return api(originalRequest);
+      }
+    }
+
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
       try {

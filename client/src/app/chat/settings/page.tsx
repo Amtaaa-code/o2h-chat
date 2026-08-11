@@ -253,6 +253,41 @@ export default function SettingsPage() {
                   />
                 </div>
               ))}
+              <div className="space-y-1.5">
+                <label className="text-xs text-white/40 font-medium">Status</label>
+                <div className="flex gap-2">
+                  {["online", "away", "busy", "offline"].map((s) => (
+                    <Button key={s} variant="outline" size="sm"
+                      onClick={async () => {
+                        try {
+                          const { data } = await api.put("/users/me", { status: s });
+                          if (data.success) setUser(data.data);
+                          toast(`Status set to ${s}`, "success");
+                        } catch (error) {
+                          toast("Failed to update status", "error");
+                        }
+                      }}
+                      className={cn("flex-1 h-9 text-xs capitalize border-[#1B2434]",
+                        user?.status === s ? "bg-primary/20 border-primary text-primary" : "bg-white/5 text-white/50 hover:bg-white/10")}>
+                      {s}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs text-white/40 font-medium">Status Text</label>
+                <Input
+                  placeholder="What's on your mind?"
+                  value={(user as any)?.statusText || ""}
+                  onChange={async (e) => {
+                    try {
+                      const { data } = await api.put("/users/me", { statusText: e.target.value });
+                      if (data.success) setUser(data.data);
+                    } catch (error) {}
+                  }}
+                  className="bg-[#0B1220] border-[#1B2434] h-11"
+                />
+              </div>
               <Button
                 className="w-full gradient-primary h-11"
                 onClick={async () => {

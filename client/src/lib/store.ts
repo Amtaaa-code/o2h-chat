@@ -7,6 +7,8 @@ interface User {
   avatar: string | null;
   role: string;
   isOnline: boolean;
+  status?: string;
+  statusText?: string;
   lastSeenAt: string | null;
   profile: {
     fullName: string;

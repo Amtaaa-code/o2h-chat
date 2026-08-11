@@ -9,7 +9,7 @@ router.get('/me', authMiddleware, async (req: any, res) => {
   try {
     const user = await prisma.user.findUnique({
       where: { id: req.userId },
-      select: { id: true, email: true, username: true, avatar: true, role: true, isOnline: true, lastSeenAt: true, createdAt: true, profile: true, settings: true },
+      select: { id: true, email: true, username: true, avatar: true, role: true, isOnline: true, status: true, statusText: true, lastSeenAt: true, createdAt: true, profile: true, settings: true },
     });
     if (!user) return res.status(404).json({ success: false, message: 'User not found' });
     res.json({ success: true, data: user });
@@ -21,12 +21,14 @@ router.get('/me', authMiddleware, async (req: any, res) => {
 
 router.put('/me', authMiddleware, async (req: any, res) => {
   try {
-    const { fullName, phoneNumber, bio, address, avatar, gender, dateOfBirth } = req.body;
+    const { fullName, phoneNumber, bio, address, avatar, gender, dateOfBirth, status, statusText } = req.body;
 
     const user = await prisma.user.update({
       where: { id: req.userId },
       data: {
         ...(avatar !== undefined && { avatar }),
+        ...(status !== undefined && { status }),
+        ...(statusText !== undefined && { statusText }),
         profile: {
           upsert: {
             create: { fullName: fullName || '', phoneNumber, bio, address, gender, dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : undefined },
