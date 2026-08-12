@@ -6,7 +6,7 @@ let reconnectTimer: NodeJS.Timeout | null = null;
 export const getSocket = (): Socket => {
   if (!socket) {
     const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
-    socket = io(process.env.NEXT_PUBLIC_WS_URL || 'https://o2h-chat-64de.onbelmo.uk', {
+    socket = io(process.env.NEXT_PUBLIC_WS_URL || 'https://o2h-chat-production.up.railway.app', {
       auth: { token },
       transports: ['websocket', 'polling'],
       reconnection: true,

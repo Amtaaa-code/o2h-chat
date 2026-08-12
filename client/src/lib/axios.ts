@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || 'https://o2h-chat-64de.onbelmo.uk/api',
+  baseURL: process.env.NEXT_PUBLIC_API_URL || 'https://o2h-chat-production.up.railway.app/api',
   headers: {
     'Content-Type': 'application/json',
   },
@@ -37,7 +37,7 @@ api.interceptors.response.use(
         const refreshToken = localStorage.getItem('refreshToken');
         if (refreshToken) {
           const { data } = await axios.post(
-            `${process.env.NEXT_PUBLIC_API_URL || 'https://o2h-chat-64de.onbelmo.uk/api'}/auth/refresh`,
+            `${process.env.NEXT_PUBLIC_API_URL || 'https://o2h-chat-production.up.railway.app/api'}/auth/refresh`,
             { refreshToken }
           );
           if (data.success) {

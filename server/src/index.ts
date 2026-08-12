@@ -25,6 +25,7 @@ const allowedOrigins = [
   process.env.CLIENT_URL,
   'https://o2h-chat.vercel.app',
   'http://localhost:3000',
+  'http://localhost:3001',
 ].filter(Boolean) as string[];
 
 const app = express();

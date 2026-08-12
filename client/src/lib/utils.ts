@@ -72,6 +72,6 @@ export function getStatusColor(isOnline: boolean) {
 export function getUploadUrl(url: string | undefined | null): string {
   if (!url) return '';
   if (url.startsWith('http')) return url;
-  const backend = (process.env.NEXT_PUBLIC_API_URL || 'https://o2h-chat-64de.onbelmo.uk/api').replace('/api', '');
+  const backend = (process.env.NEXT_PUBLIC_API_URL || 'https://o2h-chat-production.up.railway.app/api').replace('/api', '');
   return `${backend}${url}`;
 }
