@@ -28,17 +28,27 @@ const allowedOrigins = [
   'http://localhost:3001',
 ].filter(Boolean) as string[];
 
+function isAllowedOrigin(origin: string | undefined): boolean {
+  if (!origin) return true;
+  if (allowedOrigins.includes(origin)) return true;
+  if (/\.vercel\.app$/.test(origin)) return true;
+  if (/\.railway\.app$/.test(origin)) return true;
+  return false;
+}
+
+const corsOriginHandler = (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+  if (isAllowedOrigin(origin)) {
+    callback(null, true);
+  } else {
+    callback(new Error('Not allowed by CORS'));
+  }
+};
+
 const app = express();
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: {
-    origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error('Not allowed by CORS'));
-      }
-    },
+    origin: corsOriginHandler,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     credentials: true,
   },
@@ -51,13 +61,7 @@ app.use(helmet({
   contentSecurityPolicy: false,
 }));
 app.use(cors({
-  origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
+  origin: corsOriginHandler,
   credentials: true,
 }));
 app.use(express.json({ limit: '50mb' }));
